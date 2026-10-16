@@ -79,6 +79,15 @@ python scripts/prepare-chatgpt.py --output artifacts/chatgpt-kit
 
 ## 开发与验证
 
+规则只编辑 [policy/parrhesia-policy.md](policy/parrhesia-policy.md)。仓库 AGENTS.md、通用／Codex／ChatGPT 三个模板、SKILL 及 ChatGPT 交接模板均由它生成；所有主入口逐字复用同一优先级和 L0／L1／L2 触发条件，平台段只补充接入方式。
+
+```powershell
+python scripts/generate-policy.py
+python scripts/generate-policy.py --check
+```
+
+`--check` 只检查，不改文件；手工修改生成文件会使一致性测试与分发构建失败。提交时同时提交规则源与生成结果。GitHub CI 也检查漂移；旧安装副本不会自动改写，需通过相应适配器更新或重新复制模板。
+
 ```powershell
 python -m unittest discover -s tests -v
 python scripts/build-release.py --output dist/parrhesia-0.1.0.zip

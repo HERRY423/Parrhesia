@@ -75,6 +75,8 @@ class DemoReleaseTests(unittest.TestCase):
             manifest = json.loads((package / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
             for name, metadata in manifest["files"].items():
                 self.assertEqual(hashlib.sha256((package / name).read_bytes()).hexdigest(), metadata["sha256"])
+            policy_check = subprocess.run([sys.executable, str(package / "scripts" / "generate-policy.py"), "--check"], cwd=base, text=True, encoding="utf-8", capture_output=True, timeout=20)
+            self.assertEqual(policy_check.returncode, 0, policy_check.stderr)
             init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25", "clientInfo": {"name": "extract-test", "version": "1"}, "capabilities": {}}}
             contract = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "parrhesia_contract", "arguments": {}}}
             result = subprocess.run([sys.executable, str(package / "scripts" / "run-mcp.py"), "--default-workspace", str(base / "state")], input="\n".join(map(json.dumps, [init, contract])) + "\n", text=True, encoding="utf-8", cwd=base, capture_output=True, timeout=20)

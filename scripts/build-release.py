@@ -5,16 +5,21 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
 import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from parrhesia.policy import check_generated
+
 ROOT_FILES = ("plugin.json", "mcp.json", "README.md", "AGENTS.md", "pyproject.toml", ".gitignore")
-DIRECTORIES = ("parrhesia", "scripts", "skills", "templates", "docs", "tests")
+DIRECTORIES = ("parrhesia", "scripts", "skills", "templates", "docs", "tests", "policy")
 EXTENSIONS = {".py", ".md", ".json", ".yaml", ".yml", ".ps1", ".txt"}
 
 
 def build(output: Path) -> dict:
+    check_generated(ROOT)
     manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
     files = [ROOT / name for name in ROOT_FILES]
     for directory in DIRECTORIES:

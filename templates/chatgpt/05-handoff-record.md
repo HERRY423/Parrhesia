@@ -1,3 +1,4 @@
+<!-- Generated from policy/parrhesia-policy.md; DO NOT EDIT. Run: python scripts/generate-policy.py -->
 # 操作者交接记录（不发送给两位审查者）
 
 此记录由主代理和用户保存。未知写 UNKNOWN；填写它不等于完成独立性验证。不要在本记录保存密钥或无关个人信息。

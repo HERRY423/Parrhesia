@@ -42,6 +42,8 @@ python scripts/prepare-chatgpt.py --output artifacts/chatgpt-kit
 
 输出目录必须尚不存在。命令仅复制白名单中的通用模板、本文和开始说明，写入 `KIT-MANIFEST.json`；不会读取研究工作区、案例数据库、账户设置或聊天日志，也不会联网。输出保持 `templates/` 与 `docs/` 目录结构，打开 `START-HERE.md` 即可。不要把整个套件发送给某一侧审查者；每侧只接收自己的提示词与填写好的共同冻结资料。
 
+维护规则时只编辑仓库的 `policy/parrhesia-policy.md` 并运行 `python scripts/generate-policy.py`。生成命令会先核对源文件与派生指令的一致性；交付给用户的套件仍可直接复制使用，无需运行生成器。用户填写的冻结资料是任务记录，不是需要重新生成的规则文件。
+
 清单的 SHA-256 仅标识**空白套件文件**，不标识用户后来填写的冻结材料，不证明模型行为、上下文隔离或人类接受。生成之后修改模板不会自动更新清单。
 
 ## 验收范围

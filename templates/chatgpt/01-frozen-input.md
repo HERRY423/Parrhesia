@@ -1,3 +1,4 @@
+<!-- Generated from policy/parrhesia-policy.md; DO NOT EDIT. Run: python scripts/generate-policy.py -->
 # 冻结资料模板（填写后供两侧共同使用）
 
 这是空白模板，不是已经冻结或验证的结果。将填写后的版本保存为新文件。case_id / revision_id 为人工管理标识；不要填写未经实际计算的哈希。

@@ -10,6 +10,9 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from parrhesia.policy import check_generated
+
 FILES = (
     "templates/AGENTS.parrhesia.chatgpt.md",
     "templates/chatgpt/01-frozen-input.md",
@@ -76,6 +79,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
+        check_generated(ROOT)
         result = prepare(args.output)
     except (OSError, ValueError) as exc:
         print(json.dumps({"error": "kit_not_created_or_incomplete", "message": str(exc)}, ensure_ascii=True), file=sys.stderr)
