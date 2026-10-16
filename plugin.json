@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "parrhesia",
+  "version": "0.1.0",
+  "description": "Evidence-calibrated conclusions through independent overclaim and underclaim review, explicit adjudication, and local provenance checks.",
+  "keywords": ["evidence", "scientific-review", "adjudication", "claim-calibration", "grok"]
+}

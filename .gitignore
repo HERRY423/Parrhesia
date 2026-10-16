@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.parrhesia/
+build/
+*.egg-info/
+dist/
+artifacts/
+.venv/
+workspaces/
+.claude/
+.env
+.env.*
+!.env.example

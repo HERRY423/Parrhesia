@@ -1,0 +1,80 @@
+{
+  "checked_date": "2026-10-09",
+  "recorded_at_utc": "2026-10-10T04:49:55.593029+00:00",
+  "host": "Grok Build",
+  "version": "1.0.48",
+  "fixture": "artifacts/grok-native/project with spaces",
+  "isolated_grok_home": "artifacts/grok-native/isolated-home",
+  "command_scope": "project-local fixture; no user profile installation",
+  "inspect": {
+    "exit_code": 0,
+    "project_trusted": true,
+    "skills": [
+      "parrhesia-review"
+    ],
+    "project_instruction_count": 1,
+    "mcp_names": [
+      "parrhesia"
+    ]
+  },
+  "doctor": {
+    "exit_code": 0,
+    "protocol": "2025-11-25",
+    "healthy_count": 1,
+    "failing_count": 0,
+    "checks": [
+      {
+        "label": "command found",
+        "passed": true
+      },
+      {
+        "label": "server started",
+        "passed": true
+      },
+      {
+        "label": "handshake OK",
+        "passed": true
+      },
+      {
+        "label": "3 tools discovered",
+        "passed": true
+      }
+    ]
+  },
+  "untrusted_control": {
+    "project_trusted": false,
+    "project_skill_count": 0,
+    "doctor_exit_code": 1,
+    "result": "repo-local server not started for an untrusted folder"
+  },
+  "model_calls": 0,
+  "native_model_effectiveness": "NOT_TESTED",
+  "real_model_context_isolation": "NOT_TESTED",
+  "native_marketplace_install": "NOT_TESTED",
+  "installed_runtime_sha256": {
+    ".grok/parrhesia/runtime/parrhesia/cli.py": "26235cc54f8864d4dd0c4e3a21068a3b85e29da409642029e97078b5e1b442b4",
+    ".grok/parrhesia/runtime/parrhesia/contracts.py": "4a09f5380854381779339419bba14ed1d0fd289812eb65ca2d7c7dd51b080bfb",
+    ".grok/parrhesia/runtime/parrhesia/core.py": "6e23df36de84f46882853f687f02f7c8b4bfb9deef32d1eb1e0e6b318bd22ea3",
+    ".grok/parrhesia/runtime/parrhesia/demo.py": "45e71a9c5e7ecb3700dd3562792669c3f4e096c0a52690e154c32c6103d9cc50",
+    ".grok/parrhesia/runtime/parrhesia/report.py": "c946f4530d5ef5254f0e945169807fd0acc785b76a9fbb607922360dbff95325",
+    ".grok/parrhesia/runtime/parrhesia/server.py": "c1b9b28c09a313df757beef85810494a30125e6dffec3c2f653d0409da53fa43",
+    ".grok/parrhesia/runtime/parrhesia/__init__.py": "92b9d675a8e12eb573cf826100f8e02d032cdca9f27e142c0dca09899ac11df1",
+    ".grok/parrhesia/runtime/parrhesia/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    ".grok/parrhesia/runtime/plugin.json": "9742f522644a9b6109e028467fc2df77bf2b7bb20063b1b2ac29c85ce6ea4330",
+    ".grok/parrhesia/runtime/mcp.json": "90a873016bd46bd553bfeadf72ceee14df6125971f111c67992cb493a9ba7f01",
+    ".grok/parrhesia/runtime/scripts/run-mcp.py": "65d3a02ceaab6e038fb617b45b43c2ccbbce30f6f5493649006bcb4b6e3edbc8",
+    ".grok/parrhesia/runtime/docs/contract.md": "00d76c37d24c30ba643ffb234e1aaea98c373805b26d8270774f0da2b391577e",
+    ".grok/skills/parrhesia-review/SKILL.md": "976daae86cdd6822918b662e78281d143734a4d0b93793a3b47c12a3d355186b"
+  },
+  "notes": [
+    "The host requires --trust before the mcp subcommand.",
+    "Only the known fixture was trusted, inside the isolated GROK_HOME.",
+    "The native compatibility scanner also discovers user Claude metadata; only Parrhesia was selected for doctor and no other server was started.",
+    "Raw local command output remains under artifacts/grok-native; paths are omitted from this public summary."
+  ],
+  "final_source_match": {
+    "all_installed_files_match_source": true,
+    "file_count": 13,
+    "agents_template_matches": true
+  }
+}

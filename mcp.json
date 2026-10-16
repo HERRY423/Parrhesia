@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "parrhesia": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["${PLUGIN_ROOT}/scripts/run-mcp.py", "--default-workspace", "${PLUGIN_DATA}/workspace"],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}
