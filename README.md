@@ -23,6 +23,7 @@ Parrhesia 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 的本地�
 - **来源核对**：保存源文件 bytes/hash，核对可选的原文锚点与当前文件；区分内容不匹配、缺失和未验证。内容不匹配阻止导出。
 - **人类介入记录**：pause / challenge / defer / accept；明确为调用方转录的人类决定，未验证人类身份。接受不等于科学验证。
 - **实际可运行的分发包**：标准清单、Skill、3 个 MCP 工具、Python CLI、Grok 项目适配器、离线演示、测试及打包工具。
+- **ChatGPT 项目／自定义 GPT 文字适配**：独立指令模板、冻结资料与双审/裁决交接套件，可离线生成；真实 ChatGPT 流程尚未验收。
 
 运行时仅依赖 Python 3.11+ 标准库。不自动联网、不调用模型、不执行用户提交的代码。宿主按照技能调度审查者；没有可隔离的子代理时，使用分开的新会话手工交接。
 
@@ -61,6 +62,20 @@ grok --cwd C:\YourProject mcp doctor parrhesia --json
 ```
 
 若只安装 MCP/Skill、不追加规则块，使用 `--skip-agents`。不修改 Grok 用户级配置，不运行模型。实际主机验证结果与限制见 [接入说明](docs/grok-integration.md)。
+
+## ChatGPT 项目／自定义 GPT
+
+把 [ChatGPT 指令模板](templates/AGENTS.parrhesia.chatgpt.md) 粘贴到项目指令或自定义 GPT 的 Instructions，按 [接入说明](docs/chatgpt-integration.md) 分别交接夸大、低估审查并带回主会话裁决。模板自含科学证据规则，不依赖上层 AGENTS.md。
+
+可一键生成本地套件（输出目录须尚不存在）：
+
+```powershell
+python scripts/prepare-chatgpt.py --output artifacts/chatgpt-kit
+```
+
+套件包含通用模板，不自动上传资料或连接本地 MCP。共享项目上下文可能影响审查隔离；普通文字模式没有数据库冻结与机械门禁，实际隔离和 ChatGPT 原生流程需另行核验。
+
+工程检查及尚未验收范围见 [ChatGPT 适配核验](docs/verification/chatgpt-adapter.md)。
 
 ## 开发与验证
 
