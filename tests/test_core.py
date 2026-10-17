@@ -405,6 +405,36 @@ class CoreTest(unittest.TestCase):
         after = self.engine.dispatch("adjudication_packet", {"case_id": self.case})
         self.assertEqual(before, after)
 
+    def test_engineering_evidence_levels_lifecycle(self):
+        for eng_level in ("test_passed", "host_accepted", "user_impact"):
+            with self.subTest(level=eng_level):
+                case_id = self.engine.dispatch("create_case", {
+                    "question": f"Engineering test for {eng_level}",
+                    "draft": "Engineering draft.",
+                    "domain": "general",
+                })["case_id"]
+                ev_id = self.engine.dispatch("register_evidence", {
+                    "case_id": case_id, "path": "evidence.txt", "provenance": "synthetic", "quote": "Effect = 2",
+                })["evidence_id"]
+                claim = {
+                    "id": "C1", "text": f"Engineering claim at level {eng_level}.", "level": eng_level,
+                    "evidence_ids": [ev_id], "effect": {"estimate": "100%", "uncertainty": "exact"},
+                    "scope": "Local test execution", "origin": "unknown",
+                    "alternatives": [{"explanation": "Environment variance", "status": "not_excluded", "reason": "Untested on other platforms"}],
+                    "checks": {name: {"status": "not_applicable", "reason": "Engineering assertion"} for name in CHECK_NAMES},
+                    "contribution": f"Validates {eng_level} level in schema",
+                }
+                self.engine.dispatch("set_ledger", {"case_id": case_id, "claims": [claim]})
+                self.engine.dispatch("freeze", {"case_id": case_id})
+                packet = self.engine.dispatch("review_packet", {"case_id": case_id, "role": "overclaim"})
+                self.engine.dispatch("submit_review", {
+                    "case_id": case_id, "role": "overclaim", "packet_id": packet["packet_id"],
+                    "input_digest": packet["input_digest"],
+                    "reviewer": {"context_id": "rev-o", "model": "m"},
+                    "covered_claim_ids": ["C1"],
+                    "findings": [{"id": "O1", "claim_id": "C1", "evidence_ids": [ev_id], "issue": "Overclaimed scope", "proposed_level": eng_level, "proposed_text": "Scoped text", "decision_impact": "None"}],
+                })
+
 
 if __name__ == "__main__":
     unittest.main()

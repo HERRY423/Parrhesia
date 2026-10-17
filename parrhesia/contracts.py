@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from typing import Any
 
-LEVELS = ("descriptive", "association", "predictive", "mechanistic", "causal")
+SCIENTIFIC_LEVELS = ("descriptive", "association", "predictive", "mechanistic", "causal")
+ENGINEERING_LEVELS = ("test_passed", "host_accepted", "user_impact")
+LEVELS = (*SCIENTIFIC_LEVELS, *ENGINEERING_LEVELS)
 VERDICTS = ("supported", "partially_supported", "unsupported", "insufficient_evidence")
 ROLES = ("overclaim", "underclaim")
 CHECK_NAMES = ("quality", "batch", "unit", "assumptions", "multiplicity", "leakage", "baseline")

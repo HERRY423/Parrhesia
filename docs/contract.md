@@ -91,7 +91,7 @@ Returns `hypothesis_id` and engine `recorded_at` alongside the submitted metadat
 ```
 
 1–100 claims. Every shown claim field is required except `hypothesis_id`.
-Levels: `descriptive | association | predictive | mechanistic | causal` (not an automatically inferred hierarchy).
+Levels: Scientific: `descriptive | association | predictive | mechanistic | causal`; Engineering: `test_passed | host_accepted | user_impact` (not an automatically inferred hierarchy).
 `effect.estimate` and `.uncertainty` must be nonempty strings; explicitly write `UNKNOWN` if not established.
 Alternatives: 1–3, status `excluded | partially_excluded | not_excluded`, each with a reason.
 All seven checks are required, status `pass | fail | unknown | not_applicable`, each with a reason.

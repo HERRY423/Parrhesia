@@ -6,7 +6,12 @@ import json
 from pathlib import Path
 
 
-LABELS = {"supported": "支持", "partially_supported": "部分支持", "unsupported": "不支持", "insufficient_evidence": "证据不足", "descriptive": "描述性观察", "association": "相关", "predictive": "可预测", "mechanistic": "机制线索", "causal": "因果", "accepted": "采纳", "partial": "部分采纳", "rejected": "驳回"}
+LABELS = {
+    "supported": "支持", "partially_supported": "部分支持", "unsupported": "不支持", "insufficient_evidence": "证据不足",
+    "descriptive": "描述性观察", "association": "相关", "predictive": "可预测", "mechanistic": "机制线索", "causal": "因果",
+    "test_passed": "测试通过", "host_accepted": "宿主验收", "user_impact": "用户效果",
+    "accepted": "采纳", "partial": "部分采纳", "rejected": "驳回",
+}
 
 
 def text(value) -> str:
