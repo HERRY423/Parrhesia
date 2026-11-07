@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 
@@ -38,6 +39,8 @@ class DemoReleaseTests(unittest.TestCase):
             content = path.read_text(encoding="utf-8")
             self.assertNotIn("<script>alert(1)</script>", content)
             self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", content)
+            from parrhesia import __version__
+            self.assertIn(f"Parrhesia {__version__} pilot", content)
 
     def test_report_preserves_judgment_and_partial_disposition_conditions(self):
         from parrhesia.demo import run_demo
@@ -57,6 +60,8 @@ class DemoReleaseTests(unittest.TestCase):
             content = path.read_text(encoding="utf-8")
             self.assertIn("仅在条件 &lt;A&gt; 成立时", content)
             self.assertIn("只采纳条件 &lt;B&gt; 的部分", content)
+            self.assertIn("条件性支持", content)
+            self.assertNotIn("部分支持", content)
 
     def test_release_extracts_and_starts_without_source_checkout(self):
         spec = importlib.util.spec_from_file_location("build_release", ROOT / "scripts" / "build-release.py")
@@ -70,9 +75,13 @@ class DemoReleaseTests(unittest.TestCase):
             package = base / "unpacked"
             with zipfile.ZipFile(archive_path) as archive:
                 names = archive.namelist()
+                self.assertIn("LICENSE", names)
+                self.assertIn("CHANGELOG.md", names)
                 self.assertTrue(all(not n.startswith(("artifacts/", "dist/", ".parrhesia/")) for n in names))
                 archive.extractall(package)
             manifest = json.loads((package / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
+            from parrhesia import __version__
+            self.assertEqual(manifest["version"], __version__)
             for name, metadata in manifest["files"].items():
                 self.assertEqual(hashlib.sha256((package / name).read_bytes()).hexdigest(), metadata["sha256"])
             policy_check = subprocess.run([sys.executable, str(package / "scripts" / "generate-policy.py"), "--check"], cwd=base, text=True, encoding="utf-8", capture_output=True, timeout=20)
@@ -82,8 +91,27 @@ class DemoReleaseTests(unittest.TestCase):
             result = subprocess.run([sys.executable, str(package / "scripts" / "run-mcp.py"), "--default-workspace", str(base / "state")], input="\n".join(map(json.dumps, [init, contract])) + "\n", text=True, encoding="utf-8", cwd=base, capture_output=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
             messages = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(messages[0]["result"]["serverInfo"]["version"], manifest["version"])
             self.assertFalse(messages[1]["result"]["isError"])
             self.assertIn("submit_adjudication", messages[1]["result"]["structuredContent"]["contract"])
+
+    def test_release_rejects_mixed_versions_before_writing(self):
+        spec = importlib.util.spec_from_file_location("version_release_builder", ROOT / "scripts" / "build-release.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            (base / "parrhesia").mkdir()
+            (base / "plugin.json").write_text('{"version":"0.2.0"}', encoding="utf-8")
+            output = base / "dist" / "release.zip"
+            for project_version, runtime_version in [("0.1.0", "0.2.0"), ("0.2.0", "0.1.0")]:
+                with self.subTest(project=project_version, runtime=runtime_version):
+                    (base / "pyproject.toml").write_text(f'[project]\nversion = "{project_version}"\n', encoding="utf-8")
+                    (base / "parrhesia" / "__init__.py").write_text(f'__version__ = "{runtime_version}"\n', encoding="utf-8")
+                    with patch.object(module, "ROOT", base), patch.object(module, "check_generated"):
+                        with self.assertRaisesRegex(ValueError, "version mismatch"):
+                            module.build(output)
+                    self.assertFalse(output.parent.exists())
 
 
 if __name__ == "__main__":

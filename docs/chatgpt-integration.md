@@ -5,7 +5,7 @@
 ## 三步开始
 
 1. 把 [ChatGPT 指令](../templates/AGENTS.parrhesia.chatgpt.md) 的正文粘贴到所选项目的指令，保留项目已有规则。文件名只是仓库命名约定，不依赖 ChatGPT 自动读取 AGENTS.md。
-2. 在主会话中描述任务。一般判断默认 L1；正式审查用 [冻结资料模板](../templates/chatgpt/01-frozen-input.md) 整理 3–5 条核心主张与可读证据。资料仍需用户授权提供给 ChatGPT。
+2. 在主会话中描述任务。一般判断默认 L1；正式审查用 [冻结资料模板](../templates/chatgpt/01-frozen-input.md)（或 [盲审版模板](../templates/chatgpt/01-frozen-input-blind.md)，不含初稿正文，防止叙事修辞先入为主）整理 3–5 条核心主张与可读证据。资料仍需用户授权提供给 ChatGPT。
 3. 由操作者将同一冻结资料分别配上 [夸大提示词](../templates/chatgpt/02-overclaim.md) 和 [低估提示词](../templates/chatgpt/03-underclaim.md)，交给两个干净会话。两份反馈原样带回主会话，按 [裁决提示词](../templates/chatgpt/04-adjudication.md) 处理。
 
 可直接在主会话发送：

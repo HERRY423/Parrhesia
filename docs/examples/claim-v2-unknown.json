@@ -1,0 +1,196 @@
+{
+  "id": "C1",
+  "text": "待填写的描述性命题；当前未提供证据",
+  "claim_type": "description",
+  "claim_basis": "empirical",
+  "evidence_level": "unassessed",
+  "scope": "UNKNOWN",
+  "evidence_ids": [],
+  "effect": {
+    "estimate": "UNKNOWN",
+    "uncertainty": "UNKNOWN"
+  },
+  "origin": "unknown",
+  "contribution": "UNKNOWN",
+  "alternatives": [
+    {
+      "explanation": "命题尚未由证据建立",
+      "status": "not_excluded",
+      "reason": "模板未提供数据"
+    }
+  ],
+  "checks": {
+    "quality": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    },
+    "batch": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    },
+    "unit": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    },
+    "assumptions": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    },
+    "multiplicity": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    },
+    "leakage": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    },
+    "baseline": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied"
+    }
+  },
+  "design_packages": [
+    {
+      "family": "observational",
+      "checks": {
+        "sampling_temporality": {
+          "status": "unknown",
+          "reason": "Template only; no evidence supplied",
+          "evidence_ids": []
+        },
+        "measurement": {
+          "status": "unknown",
+          "reason": "Template only; no evidence supplied",
+          "evidence_ids": []
+        },
+        "confounding_selection": {
+          "status": "unknown",
+          "reason": "Template only; no evidence supplied",
+          "evidence_ids": []
+        },
+        "missingness": {
+          "status": "unknown",
+          "reason": "Template only; no evidence supplied",
+          "evidence_ids": []
+        },
+        "robustness": {
+          "status": "unknown",
+          "reason": "Template only; no evidence supplied",
+          "evidence_ids": []
+        }
+      }
+    }
+  ],
+  "statistical_report": {
+    "units_sample_size": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "estimand_scale": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "estimate_uncertainty": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "model_assumptions": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "missingness_exclusions": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "multiplicity_selection": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "comparisons_baselines": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    },
+    "robustness_limits": {
+      "status": "unknown",
+      "reason": "Template only; no evidence supplied",
+      "evidence_ids": []
+    }
+  },
+  "provenance_cards": {
+    "citation": [
+      {
+        "id": "citation-template",
+        "status": "unknown",
+        "reason": "空白示例，不表示发生过检索、执行或证据核对",
+        "evidence_ids": [],
+        "details": {
+          "source": "UNKNOWN",
+          "locator": "UNKNOWN",
+          "claim_link": "UNKNOWN",
+          "support_relation": "UNKNOWN",
+          "read_extent": "UNKNOWN"
+        }
+      }
+    ],
+    "number": [
+      {
+        "id": "number-template",
+        "status": "unknown",
+        "reason": "空白示例，不表示发生过检索、执行或证据核对",
+        "evidence_ids": [],
+        "details": {
+          "value": "UNKNOWN",
+          "unit_denominator": "UNKNOWN",
+          "population_time": "UNKNOWN",
+          "derivation": "UNKNOWN",
+          "uncertainty": "UNKNOWN",
+          "locator": "UNKNOWN"
+        }
+      }
+    ],
+    "execution": [
+      {
+        "id": "execution-template",
+        "status": "not_run",
+        "reason": "空白示例，不表示发生过检索、执行或证据核对",
+        "evidence_ids": [],
+        "details": {
+          "command": "UNKNOWN",
+          "code_version": "UNKNOWN",
+          "inputs": "UNKNOWN",
+          "environment": "UNKNOWN",
+          "started_at": "UNKNOWN",
+          "ended_at": "UNKNOWN",
+          "exit_status": "UNKNOWN",
+          "outputs": "UNKNOWN",
+          "log_locator": "UNKNOWN"
+        }
+      }
+    ],
+    "search": [
+      {
+        "id": "search-template",
+        "status": "not_run",
+        "reason": "空白示例，不表示发生过检索、执行或证据核对",
+        "evidence_ids": [],
+        "details": {
+          "database": "UNKNOWN",
+          "query": "UNKNOWN",
+          "searched_at": "UNKNOWN",
+          "filters": "UNKNOWN",
+          "coverage": "UNKNOWN",
+          "results": "UNKNOWN",
+          "selection": "UNKNOWN",
+          "limitations": "UNKNOWN"
+        }
+      }
+    ]
+  }
+}

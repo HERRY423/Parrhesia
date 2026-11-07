@@ -3,9 +3,12 @@ from __future__ import annotations
 
 from typing import Any
 
+# Legacy v1 wire values only. V2 uses the type-local registry in claims.py.
 SCIENTIFIC_LEVELS = ("descriptive", "association", "predictive", "mechanistic", "causal")
 ENGINEERING_LEVELS = ("test_passed", "host_accepted", "user_impact")
+GENERAL_LEVELS = ("descriptive", *ENGINEERING_LEVELS)
 LEVELS = (*SCIENTIFIC_LEVELS, *ENGINEERING_LEVELS)
+DOMAINS = ("scientific", "general")
 VERDICTS = ("supported", "partially_supported", "unsupported", "insufficient_evidence")
 ROLES = ("overclaim", "underclaim")
 CHECK_NAMES = ("quality", "batch", "unit", "assumptions", "multiplicity", "leakage", "baseline")
@@ -14,7 +17,7 @@ ALTERNATIVE_STATUSES = ("excluded", "partially_excluded", "not_excluded")
 PROVENANCE = ("reported", "observed", "synthetic")
 ORIGINS = ("prespecified", "exploratory", "unknown")
 ACTIONS = (
-    "create_case", "register_evidence", "register_hypothesis", "set_ledger",
+    "create_case", "register_evidence", "register_hypothesis", "scaffold_claim", "set_ledger",
     "freeze", "review_packet", "submit_review", "adjudication_packet",
     "submit_adjudication", "verify", "get_case", "export", "record_human_decision",
 )

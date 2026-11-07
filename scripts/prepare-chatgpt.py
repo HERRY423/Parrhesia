@@ -16,6 +16,7 @@ from parrhesia.policy import check_generated
 FILES = (
     "templates/AGENTS.parrhesia.chatgpt.md",
     "templates/chatgpt/01-frozen-input.md",
+    "templates/chatgpt/01-frozen-input-blind.md",
     "templates/chatgpt/02-overclaim.md",
     "templates/chatgpt/03-underclaim.md",
     "templates/chatgpt/04-adjudication.md",

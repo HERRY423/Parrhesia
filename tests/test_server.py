@@ -1,4 +1,6 @@
 import json
+from contextlib import closing
+import sqlite3
 from pathlib import Path
 import subprocess
 import sys
@@ -41,6 +43,21 @@ class MCPTests(unittest.TestCase):
             self.assertEqual(responses[0]["error"]["code"], -32700)
             self.assertTrue(responses[2]["result"]["isError"])
             self.assertEqual(Path(responses[3]["result"]["structuredContent"]["workspace"]), Path(workspace).resolve())
+
+    def test_legacy_creation_rejected_over_mcp_without_poisoning_next_request(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            def create(payload, number):
+                return request("tools/call", {"name": "parrhesia_workflow", "arguments": {"action": "create_case", "payload": payload}}, number)
+            responses = self.exchange(workspace, [INITIALIZE,
+                create({"question": "Legacy bypass", "draft": "Fixture", "schema_version": 1}, 2),
+                create({"question": "Current case", "draft": "Fixture"}, 3)])
+            self.assertTrue(responses[1]["result"]["isError"])
+            self.assertIn("legacy_creation_disabled", json.dumps(responses[1]))
+            current = responses[2]["result"]["structuredContent"]
+            self.assertEqual(current["schema_version"], 2)
+            self.assertEqual(current["gate_version"], 1)
+            with closing(sqlite3.connect(Path(workspace) / ".parrhesia/state.sqlite3")) as db:
+                self.assertEqual(db.execute("SELECT count(*) FROM cases").fetchone()[0], 1)
 
     def test_workspace_selection_and_error_boundaries(self):
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

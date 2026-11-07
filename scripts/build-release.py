@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path
 import sys
+import tomllib
 import zipfile
 
 
@@ -13,14 +15,27 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from parrhesia.policy import check_generated
 
-ROOT_FILES = ("plugin.json", "mcp.json", "README.md", "AGENTS.md", "pyproject.toml", ".gitignore")
+ROOT_FILES = ("plugin.json", "mcp.json", "README.md", "AGENTS.md", "pyproject.toml", ".gitignore", "LICENSE", "CHANGELOG.md")
 DIRECTORIES = ("parrhesia", "scripts", "skills", "templates", "docs", "tests", "policy")
 EXTENSIONS = {".py", ".md", ".json", ".yaml", ".yml", ".ps1", ".txt"}
+
+
+def validate_versions(root: Path, manifest: dict) -> None:
+    """Read metadata without importing or executing release source code."""
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    tree = ast.parse((root / "parrhesia" / "__init__.py").read_text(encoding="utf-8"))
+    versions = [ast.literal_eval(node.value) for node in tree.body
+                if isinstance(node, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)]
+    version = manifest.get("version")
+    if not isinstance(version, str) or not version or versions != [version] or project["project"]["version"] != version:
+        raise ValueError("Release version mismatch: plugin.json, pyproject.toml and parrhesia/__init__.py must agree")
 
 
 def build(output: Path) -> dict:
     check_generated(ROOT)
     manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
+    validate_versions(ROOT, manifest)
     files = [ROOT / name for name in ROOT_FILES]
     for directory in DIRECTORIES:
         files.extend(path for path in (ROOT / directory).rglob("*") if path.is_file() and path.suffix in EXTENSIONS and "__pycache__" not in path.parts)

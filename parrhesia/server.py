@@ -11,7 +11,7 @@ from .core import Engine
 
 VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 ACTIONS = [
-    "create_case", "register_evidence", "register_hypothesis", "set_ledger",
+    "create_case", "register_evidence", "register_hypothesis", "scaffold_claim", "set_ledger",
     "freeze", "review_packet", "submit_review", "adjudication_packet",
     "submit_adjudication", "verify", "get_case", "export", "record_human_decision",
 ]

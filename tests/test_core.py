@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from legacy_fixtures import seed_legacy_case
 from parrhesia.contracts import CHECK_NAMES, ContractError
 from parrhesia.core import Engine
 
@@ -25,7 +26,7 @@ class CoreTest(unittest.TestCase):
         self.engine = Engine(self.workspace)
         self.source = self.workspace / "evidence.txt"
         self.source.write_text("Synthetic engineering fixture. Effect = 2; CI [1, 3].\n", encoding="utf-8")
-        self.case = self.engine.dispatch("create_case", {
+        self.case = seed_legacy_case(self.engine, {"schema_version": 1,
             "question": "Does this synthetic fixture support the example description?",
             "draft": "An example draft, with no scientific-validity claim.",
             "writer_context_id": "writer",
@@ -408,7 +409,7 @@ class CoreTest(unittest.TestCase):
     def test_engineering_evidence_levels_lifecycle(self):
         for eng_level in ("test_passed", "host_accepted", "user_impact"):
             with self.subTest(level=eng_level):
-                case_id = self.engine.dispatch("create_case", {
+                case_id = seed_legacy_case(self.engine, {"schema_version": 1,
                     "question": f"Engineering test for {eng_level}",
                     "draft": "Engineering draft.",
                     "domain": "general",
@@ -434,6 +435,143 @@ class CoreTest(unittest.TestCase):
                     "covered_claim_ids": ["C1"],
                     "findings": [{"id": "O1", "claim_id": "C1", "evidence_ids": [ev_id], "issue": "Overclaimed scope", "proposed_level": eng_level, "proposed_text": "Scoped text", "decision_impact": "None"}],
                 })
+
+    def test_domain_level_validation_and_general_defaults(self):
+        # 1. Scientific domain rejects engineering levels
+        sci_case = seed_legacy_case(self.engine, {"schema_version": 1,
+            "question": "Scientific question",
+            "draft": "Scientific draft.",
+            "domain": "scientific",
+        })["case_id"]
+        ev_id = self.engine.dispatch("register_evidence", {
+            "case_id": sci_case, "path": "evidence.txt", "provenance": "synthetic", "quote": "Effect = 2",
+        })["evidence_id"]
+        for eng_lvl in ("test_passed", "host_accepted", "user_impact"):
+            claim = {
+                "id": "C1", "text": "Claim", "level": eng_lvl, "evidence_ids": [ev_id],
+                "effect": {"estimate": "1", "uncertainty": "0.1"}, "scope": "Scope", "origin": "unknown",
+                "alternatives": [{"explanation": "Alt", "status": "not_excluded", "reason": "R"}],
+                "checks": {name: {"status": "not_applicable", "reason": "R"} for name in CHECK_NAMES},
+                "contribution": "Contrib",
+            }
+            self.error("invalid_value", "set_ledger", {"case_id": sci_case, "claims": [claim]})
+
+        # 2. General domain rejects scientific-only levels
+        gen_case = seed_legacy_case(self.engine, {"schema_version": 1,
+            "question": "General question",
+            "draft": "General draft.",
+            "domain": "general",
+        })["case_id"]
+        ev_id2 = self.engine.dispatch("register_evidence", {
+            "case_id": gen_case, "path": "evidence.txt", "provenance": "synthetic", "quote": "Effect = 2",
+        })["evidence_id"]
+        for sci_lvl in ("causal", "mechanistic", "association", "predictive"):
+            claim = {
+                "id": "C1", "text": "Claim", "level": sci_lvl, "evidence_ids": [ev_id2],
+                "effect": {"estimate": "1", "uncertainty": "0.1"}, "scope": "Scope", "origin": "unknown",
+                "contribution": "Contrib",
+            }
+            self.error("invalid_value", "set_ledger", {"case_id": gen_case, "claims": [claim]})
+
+        # 3. General domain allows omitting checks (defaults to not_applicable) and alternatives (defaults to [])
+        valid_gen_claim = {
+            "id": "C1", "text": "Claim", "level": "test_passed", "evidence_ids": [ev_id2],
+            "effect": {"estimate": "100%", "uncertainty": "exact"}, "scope": "Scope", "origin": "unknown",
+            "contribution": "Contrib",
+        }
+        res = self.engine.dispatch("set_ledger", {"case_id": gen_case, "claims": [valid_gen_claim]})
+        self.assertEqual(res["claim_count"], 1)
+        case_doc = self.engine.dispatch("get_case", {"case_id": gen_case})
+        stored_claim = case_doc["claims"][0]
+        self.assertEqual(stored_claim["alternatives"], [])
+        self.assertEqual(len(stored_claim["checks"]), len(CHECK_NAMES))
+        for check in stored_claim["checks"].values():
+            self.assertEqual(check["status"], "not_applicable")
+
+        # 4. Review enforces general domain levels
+        self.engine.dispatch("freeze", {"case_id": gen_case})
+        packet = self.engine.dispatch("review_packet", {"case_id": gen_case, "role": "overclaim"})
+        self.error("invalid_value", "submit_review", {
+            "case_id": gen_case, "role": "overclaim", "packet_id": packet["packet_id"],
+            "input_digest": packet["input_digest"],
+            "reviewer": {"context_id": "rev-o", "model": "m"},
+            "covered_claim_ids": ["C1"],
+            "findings": [{"id": "O1", "claim_id": "C1", "evidence_ids": [ev_id2], "issue": "Issue", "proposed_level": "causal", "proposed_text": "Text", "decision_impact": "Impact"}],
+        })
+
+    def test_research_advancement_fields_and_blind_review(self):
+        case_id = seed_legacy_case(self.engine, {"schema_version": 1,
+            "question": "Advance research on gene pathway?",
+            "draft": "Draft mentioning speculative hypothesis and preliminary results.",
+            "domain": "scientific",
+        })["case_id"]
+        ev_id = self.engine.dispatch("register_evidence", {
+            "case_id": case_id, "path": "evidence.txt", "provenance": "synthetic", "quote": "Effect = 2",
+        })["evidence_id"]
+        claim = {
+            "id": "C1", "text": "Gene X activates Pathway Y.", "level": "mechanistic",
+            "evidence_ids": [ev_id], "effect": {"estimate": "2-fold", "uncertainty": "p < 0.05"},
+            "scope": "Cell culture assay", "origin": "unknown",
+            "best_current_explanation": "Direct kinase phosphorylation by Gene X product",
+            "discriminating_test": "Phosphorylation assay with kinase-dead mutant",
+            "alternatives": [{"explanation": "Secondary indirect response", "status": "not_excluded", "reason": "No cycloheximide control"}],
+            "checks": {name: {"status": "unknown", "reason": "Preliminary"} for name in CHECK_NAMES},
+            "contribution": "Proposes direct mechanism",
+        }
+        self.engine.dispatch("set_ledger", {"case_id": case_id, "claims": [claim]})
+        case_doc = self.engine.dispatch("get_case", {"case_id": case_id})
+        self.assertEqual(case_doc["claims"][0]["best_current_explanation"], "Direct kinase phosphorylation by Gene X product")
+        self.assertEqual(case_doc["claims"][0]["discriminating_test"], "Phosphorylation assay with kinase-dead mutant")
+
+        self.engine.dispatch("freeze", {"case_id": case_id})
+
+        # Test blind review packet
+        blind_packet = self.engine.dispatch("review_packet", {"case_id": case_id, "role": "overclaim", "blind": True})
+        self.assertTrue(blind_packet["blind"])
+        self.assertIsNone(blind_packet["draft"])
+        self.assertEqual(len(blind_packet["claims"]), 1)
+        self.assertEqual(blind_packet["claims"][0]["best_current_explanation"], "Direct kinase phosphorylation by Gene X product")
+        self.assertEqual(len(blind_packet["evidence"]), 1)
+
+        # Test standard (non-blind) review packet
+        standard_packet = self.engine.dispatch("review_packet", {"case_id": case_id, "role": "overclaim", "blind": False})
+        self.assertFalse(standard_packet.get("blind", False))
+        self.assertEqual(standard_packet["draft"], "Draft mentioning speculative hypothesis and preliminary results.")
+
+        # Complete review, adjudication and export, verifying report rendering
+        self.engine.dispatch("submit_review", {
+            "case_id": case_id, "role": "overclaim", "packet_id": blind_packet["packet_id"],
+            "input_digest": blind_packet["input_digest"],
+            "reviewer": {"context_id": "rev-over", "model": "m"},
+            "covered_claim_ids": ["C1"], "findings": [],
+        })
+        under_packet = self.engine.dispatch("review_packet", {"case_id": case_id, "role": "underclaim", "blind": True})
+        self.engine.dispatch("submit_review", {
+            "case_id": case_id, "role": "underclaim", "packet_id": under_packet["packet_id"],
+            "input_digest": under_packet["input_digest"],
+            "reviewer": {"context_id": "rev-under", "model": "m"},
+            "covered_claim_ids": ["C1"], "findings": [],
+        })
+        adj_packet = self.engine.dispatch("adjudication_packet", {"case_id": case_id})
+        self.engine.dispatch("submit_adjudication", {
+            "case_id": case_id, "adjudication_id": adj_packet["adjudication_id"],
+            "input_digest": adj_packet["input_digest"],
+            "adjudicator": {"context_id": "adj-1", "model": "m"},
+            "decisions": [{
+                "claim_id": "C1", "verdict": "insufficient_evidence", "level": "mechanistic",
+                "revised_text": "Gene X may participate in Pathway Y activation.",
+                "rationale": "Direct mechanism lacks kinase-dead control.",
+                "evidence_ids": [], "confidence": "low",
+                "confidence_reason": "No kinase mutant assay yet.",
+                "boundary": "In vitro preliminary cell culture only.",
+                "reversal_condition": "Kinase mutant assay showing no phosphorylation.",
+            }],
+            "dispositions": [],
+        })
+        export_result = self.engine.dispatch("export", {"case_id": case_id})
+        report_text = Path(export_result["path"]).read_text(encoding="utf-8")
+        self.assertIn("Best current explanation: Direct kinase phosphorylation by Gene X product", report_text)
+        self.assertIn("Discriminating test: Phosphorylation assay with kinase-dead mutant", report_text)
 
 
 if __name__ == "__main__":
