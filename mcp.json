@@ -5,7 +5,12 @@
       "type": "stdio",
       "command": "python",
       "args": ["${PLUGIN_ROOT}/scripts/run-mcp.py", "--default-workspace", "${PLUGIN_DATA}/workspace"],
-      "cwd": "${PLUGIN_ROOT}"
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      }
     }
   }
 }

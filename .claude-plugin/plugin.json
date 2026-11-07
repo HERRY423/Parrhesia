@@ -1,0 +1,16 @@
+{
+  "name": "parrhesia",
+  "version": "0.2.0",
+  "description": "Evidence-calibrated conclusions through independent overclaim and underclaim review, explicit adjudication, and local provenance checks.",
+  "author": {
+    "name": "Herry"
+  },
+  "skills": "./skills/",
+  "keywords": [
+    "evidence",
+    "scientific-review",
+    "adjudication",
+    "claim-calibration",
+    "grok"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "name": "parrhesia",
+  "version": "0.2.0",
+  "description": "Evidence-calibrated conclusions through independent overclaim and underclaim review, explicit adjudication, and local provenance checks.",
+  "author": {
+    "name": "Herry",
+    "url": "https://github.com/HERRY423/Parrhesia"
+  },
+  "homepage": "https://github.com/HERRY423/Parrhesia",
+  "repository": "https://github.com/HERRY423/Parrhesia",
+  "license": "Apache-2.0",
+  "keywords": [
+    "evidence",
+    "scientific-review",
+    "adjudication",
+    "claim-calibration",
+    "grok"
+  ],
+  "skills": "./skills/",
+  "mcpServers": {
+    "parrhesia": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "${PLUGIN_ROOT}/scripts/run-mcp.py",
+        "--default-workspace",
+        "${PLUGIN_DATA}/workspace"
+      ],
+      "cwd": "${PLUGIN_ROOT}",
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      }
+    }
+  },
+  "interface": {
+    "displayName": "Parrhesia",
+    "shortDescription": "让证据决定表达强度，让裁决结束空泛中立。",
+    "longDescription": "面向科研探索与工程研发的证据校准与双审裁决插件。将夸大审查（检查越级用词与理想化）、低估审查（找回被无证据削弱的贡献与被埋没的发现）与单一裁决严格解耦；内置 L0/L1/L1-Explore/L2 四档触发机制、12 类主张 × 类型内证据等级（Claim Schema v2）、反空转与反橡皮图章门控（gate_version=1）以及来源哈希与原文锚点核对。",
+    "developerName": "Herry",
+    "category": "Research",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/HERRY423/Parrhesia",
+    "defaultPrompt": [
+      "用 Parrhesia 审查这篇草稿：先登记并冻结核心结论台账，再分别做夸大与低估双审并裁决。",
+      "进入 L1-Explore 轻量探索模式：为当前问题建立 2–3 张候选假说探索卡（最强对手、区分实验、成本、停止规则、杀死条件）。"
+    ]
+  }
+}

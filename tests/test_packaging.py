@@ -73,6 +73,19 @@ class PackagingTests(unittest.TestCase):
         self.assertLessEqual(set(server), {"type", "command", "args", "env", "cwd"})
         self.assertFalse({"PLUGIN_ROOT", "PLUGIN_DATA"} & set(server.get("env", {})))
         self.assertTrue((ROOT / "skills" / "parrhesia-review" / "SKILL.md").is_file())
+        codex_market = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(codex_market["name"], "parrhesia-marketplace")
+        self.assertEqual(codex_market["plugins"][0]["name"], manifest["name"])
+        self.assertEqual(codex_market["plugins"][0]["source"], {"source": "local", "path": "./"})
+        claude_market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(claude_market["name"], "parrhesia-marketplace")
+        self.assertEqual(claude_market["plugins"][0]["name"], manifest["name"])
+        self.assertEqual(claude_market["plugins"][0]["source"], "./")
+        self.assertEqual(claude_market["plugins"][0]["version"], manifest["version"])
+        for rel in (".codex-plugin/plugin.json", ".claude-plugin/plugin.json"):
+            compat = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+            self.assertEqual(compat["name"], manifest["name"])
+            self.assertEqual(compat["version"], manifest["version"])
 
     def test_portable_expansion_launches_server_outside_checkout(self):
         with tempfile.TemporaryDirectory(prefix="parrhesia-portable-", dir=TEMP_ROOT) as directory:

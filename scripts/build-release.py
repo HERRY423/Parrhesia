@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 from parrhesia.policy import check_generated
 
 ROOT_FILES = ("plugin.json", "mcp.json", "README.md", "AGENTS.md", "pyproject.toml", ".gitignore", "LICENSE", "CHANGELOG.md")
-DIRECTORIES = ("parrhesia", "scripts", "skills", "templates", "docs", "tests", "policy")
+DIRECTORIES = ("parrhesia", "scripts", "skills", "templates", "docs", "tests", "policy", ".agents", ".codex-plugin", ".claude-plugin")
 EXTENSIONS = {".py", ".md", ".json", ".yaml", ".yml", ".ps1", ".txt"}
 
 
@@ -30,6 +30,13 @@ def validate_versions(root: Path, manifest: dict) -> None:
     version = manifest.get("version")
     if not isinstance(version, str) or not version or versions != [version] or project["project"]["version"] != version:
         raise ValueError("Release version mismatch: plugin.json, pyproject.toml and parrhesia/__init__.py must agree")
+    for rel in (".codex-plugin/plugin.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"):
+        compat_path = root / rel
+        if compat_path.is_file():
+            compat = json.loads(compat_path.read_text(encoding="utf-8"))
+            target_version = compat.get("plugins", [{}])[0].get("version") if rel.endswith("marketplace.json") else compat.get("version")
+            if target_version != version:
+                raise ValueError(f"Release version mismatch in {rel}")
 
 
 def build(output: Path) -> dict:

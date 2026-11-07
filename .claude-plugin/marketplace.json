@@ -1,0 +1,16 @@
+{
+  "name": "parrhesia-marketplace",
+  "description": "Evidence-calibrated conclusions through independent overclaim and underclaim review, explicit adjudication, and local provenance checks.",
+  "owner": {
+    "name": "Herry"
+  },
+  "plugins": [
+    {
+      "name": "parrhesia",
+      "source": "./",
+      "description": "Evidence-calibrated conclusions through independent overclaim and underclaim review, explicit adjudication, and local provenance checks.",
+      "version": "0.2.0",
+      "category": "Research"
+    }
+  ]
+}
