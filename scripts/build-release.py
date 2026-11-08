@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from parrhesia.policy import check_generated
 
-ROOT_FILES = ("plugin.json", "mcp.json", "README.md", "AGENTS.md", "pyproject.toml", ".gitignore", "LICENSE", "CHANGELOG.md")
+ROOT_FILES = ("plugin.json", "mcp.json", "README.md", "README.en.md", "AGENTS.md", "pyproject.toml", ".gitignore", "LICENSE", "CHANGELOG.md")
 DIRECTORIES = ("parrhesia", "scripts", "skills", "templates", "docs", "tests", "policy", ".agents", ".codex-plugin", ".claude-plugin")
 EXTENSIONS = {".py", ".md", ".json", ".yaml", ".yml", ".ps1", ".txt"}
 

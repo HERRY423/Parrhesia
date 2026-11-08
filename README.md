@@ -2,6 +2,8 @@
 
 **让证据决定表达强度，让裁决结束空泛中立。**
 
+**语言 / Language**：简体中文 · **[English](README.en.md)**
+
 Parrhesia 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的本地证据校准与双审裁决插件，配套单源生成的跨平台规则体系 `AGENTS.md`。当前版本为 **`0.2.0` pilot**（新案例采用 `schema_version=2` 与反空转机械门控 `gate_version=1`，保留历史记录兼容恢复）。
 
 查看 [版本变更记录](CHANGELOG.md) · [从 0.1.0 升级指南](docs/migration-0.2.md) · [0.2.0 交付核验](docs/verification/release-0.2.0.md) · [Stage 0 对照评估报告](docs/verification/stage0-evaluation.md)
@@ -208,16 +210,18 @@ Parrhesia 不为简单任务制造流程负担，也不在关键结论上放水�
 
 ### 3. 八大反空转与反橡皮图章机械门控（`gate_version=1`）
 
-为防止模型“假动作填表全填 pass/not_applicable”或“双审零意见直接放行”，`0.2.0` 内核在提交时执行严格的确定性拦截（拒绝时不推进状态机）：
+为防止模型“空手填 `pass`、理由写 `'ok'`、核心检查填 `not_applicable`、拿无关原文片段充当 `quote`、把观察性数据伪报成 `intervention`”或“双审零意见直接放行”，`0.2.0` 内核在提交时执行严格的确定性交叉核验（拒绝时不推进状态机）：
 
-1. **关键检查上限 (`check_ceilings`)**：按主张类型与等级自动计算允许的最高等级。固定关键检查、所选设计包的核心检查及定量主张的核心统计项（样本量与不确定性）**严禁用 `not_applicable` 规避**，且严禁将整个设计包全填 `not_applicable`。
-2. **证据类型硬兼容 (`incompatible_evidence_kind`)**：正向判定引用的每一条证据 `kind` 必须与目标 `claim_type × evidence_level` 严格兼容，禁止将不兼容的背景材料混入支持证据列表。
-3. **合成证据隔离 (`synthetic_empirical_support`)**：任何 `kind` 或 `provenance` 为 `synthetic` 的证据，严禁支持 `empirical` 或 `formal` 的正向结论；合成正向演示仅限 `description × recorded` 或 `computational × benchmark_measured`。
-4. **逐引用唯一原文锚点 (`unanchored_positive_evidence`)**：正向判定的每条引用必须包含至少 **12 个可见非空白字符**（控制字符、组合附加符与私用区码点不计入长度）且在保存的完整原文中**唯一匹配**的 `quote` 与具体 `location`。
-5. **未读内容显式确认 (`unread_ack_required`)**：二进制文件（PDF/ZIP/PNG 等）、超 128 KiB 截断文本或缺失源文件不得用于支持正向判定，且必须在双审与裁决的 `unread_evidence_ids` 中完整列出确认。
-6. **逐主张立场全覆盖 (`incomplete_stances`)**：即使某侧审查者提出的修改意见 `findings` 为 0 条，也必须对每条冻结主张提交 `claim_stances`（评价原命题；`partially_supported` 必须附非占位符的真实条件）。
-7. **意见落实与分歧留痕 (`finding_not_incorporated`)**：每条审查意见的处置必须绑定对应主张的裁决。标记 `incorporated` 时，必须提供在建议文与最终修订文中均唯一出现、且**不在原句中**的 $\ge 12$ 字符改写锚点 `revised_text_quote`；未改写或偏离建议必须显式记为 `resolution="disagreement"` 并说明具体理由。
-8. **案例级盲审冻结与审查者输入清单 (`case_level_blind` & `input_manifest`)**：新案例默认 `blind=true` 并在案例级冻结，盲审包自动剥离初稿与作者倾向字段；派发子代理时只提供对应角色的 `review_packet`（不继承起草历史、关闭持久记忆读取），并在报告中显式披露审查者输入清单（`input_manifest`）。
+1. **全包覆盖与逐级递进检查上限 (`check_ceilings` & `FAMILY_TIER_CHECKS`)**：
+   - **全部 9 个设计包必选覆盖**：不仅因果、机制、预测、计算与关联受必选检查约束，`theory`（如 `definitions_assumptions`、`proof`）、`qualitative`（如 `epistemic_position`、`sampling_context`、`analysis_audit`）与 `evidence_synthesis`（如 `protocol_search`、`eligibility_selection`、`bias_dependence`）的核心检查同样**严禁用 `not_applicable` 规避**。
+   - **相邻证据等级机械区分**：同一 `claim_type` 内的相邻等级绑定严格递进的设计检查、固定检查与统计报告门槛（例如 `association` 中 `unadjusted < adjusted < robust_association` 逐级增加混杂控制与稳健性要求；`causal_effect` 中 `identified_under_assumptions` 要求识别假设通过，而 `sensitivity_supported` 额外强制 `falsification_sensitivity` 与设计包敏感度/稳健性检查通过；`theory`、`qualitative`、`synthesis` 各级亦逐级递进），模型无法靠主观换标签跨级晋升。
+2. **证据绑定的实质性 `pass` 与裁决交叉引用 (`effective_status` & `uncited_check_evidence`)**：设计包、统计报告与因果识别中任何填 `pass` 的检查项，必须同时具备**非空 `evidence_ids`** 与**实质性理由**（自动拦截 `"ok"`、`"pass"`、`"yes"`、`"done"` 等敷衍占位词，未达标一律降级为 `unknown` 并锁死天花板）；正向裁决必须显式引用支撑这些必选 `pass` 检查项的证据 ID（遗漏触发 `uncited_check_evidence`）。
+3. **证据类型硬兼容与原文自相矛盾拦截 (`incompatible_evidence_kind` & `contradictory_evidence_kind`)**：正向判定引用的每条证据 `kind` 必须与目标 `claim_type × evidence_level` 兼容；若证据快照原文明确声明了与所报 `kind` 冲突的弱研究设计（如把写明“观察性队列 / 非随机”的原文登记为 `kind="intervention"`，或把“仅内部交叉验证”登记为 `kind="prediction_external"`），门控直接以 `contradictory_evidence_kind` 拒绝。
+4. **合成证据隔离 (`synthetic_empirical_support`)**：任何 `kind` 或 `provenance` 为 `synthetic` 的证据，严禁支持 `empirical` 或 `formal` 的正向结论；合成正向演示仅限 `description × recorded` 或 `computational × benchmark_measured`。
+5. **逐引用唯一原文锚点与主张相关性核验 (`unanchored_positive_evidence` & `unlinked_evidence_quote`)**：正向判定的每条引用不仅需要包含至少 **12 个可见非空白字符**且在保存的完整原文中**唯一匹配**的 `quote` 与具体 `location`，而且该 `quote` 必须与主张文本、效应量/不确定性区间或已核对溯源卡共享定量数值、领域实词或定位锚点（截取文件页眉、版权声明等无关片段将触发 `unlinked_evidence_quote` 拒绝）。
+6. **未读内容显式确认 (`unread_ack_required`)**：二进制文件（PDF/ZIP/PNG 等）、超 128 KiB 截断文本或缺失源文件不得用于支持正向判定，且必须在双审与裁决的 `unread_evidence_ids` 中完整列出确认。
+7. **逐主张立场全覆盖 (`incomplete_stances`)**：即使某侧审查者提出的修改意见 `findings` 为 0 条，也必须对每条冻结主张提交 `claim_stances`（评价原命题；`partially_supported` 必须附非占位符的真实条件）。
+8. **意见落实与分歧留痕、盲审冻结 (`finding_not_incorporated` & `case_level_blind`)**：每条审查意见处置必须绑定对应主张裁决；标记 `incorporated` 须提供在建议文与最终修订文中均唯一出现且**不在原句中**的 $\ge 12$ 字符改写锚点 `revised_text_quote`，未改写或偏离建议须显式记为 `resolution="disagreement"`。新案例默认 `blind=true` 并在案例级冻结，报告中显式记录审查者输入清单（`input_manifest`）。
 
 ---
 
@@ -261,7 +265,7 @@ python scripts/generate-policy.py
 python scripts/run-stage0-eval.py --report-out docs/verification/stage0-evaluation.md
 python scripts/run-stage0-eval.py --mode prompt-export --output-dir artifacts/stage0-prompts --report-out docs/verification/stage0-evaluation.md
 
-# 运行完整自动化测试套件（111 项测试：110 通过、1 跳过）
+# 运行完整自动化测试套件（114 项测试：113 通过、1 跳过）
 python -m unittest discover -s tests -v
 
 # 构建确定性分发 ZIP 包（自动校验 plugin.json / pyproject.toml / 运行时与兼容清单版本一致性）
@@ -276,10 +280,10 @@ Parrhesia 坚持“让结论与证据相称”，对自身 `0.2.0` 版本的成�
 
 | 评估维度 | 当前状态与证据定位 | 可支持的结论与客观边界 |
 | :--- | :--- | :--- |
-| **本地状态机、机械门控与发布一致性**<br>(`engineering × test_passed`，支持) | 111 项自动化测试（110 通过、1 跳过，见 [0.2.0 核验记录](docs/verification/release-0.2.0.md)）；Stage 0 机械套件 24 个 L2 案例与 6 个 `L1-Explore` 探索案例全部通过（见 [Stage 0 评估报告](docs/verification/stage0-evaluation.md)） | 证明本地 SQLite 状态机、v2 门控拒绝、绕过防护（见 [绕过修复核验](docs/verification/gate-bypass-hardening-20261019.md)）、旧版 `LEGACY_UNGATED` 兼容恢复、单源规则生成（见 [规则生成核验](docs/verification/policy-generation.md)）与独立 ZIP 解压启动按契约工作 |
+| **本地状态机、机械门控与发布一致性**<br>(`engineering × test_passed`，支持) | 114 项自动化测试（113 通过、1 跳过，见 [0.2.0 核验记录](docs/verification/release-0.2.0.md)）；Stage 0 机械套件 24 个 L2 案例与 6 个 `L1-Explore` 探索案例全部通过（见 [Stage 0 评估报告](docs/verification/stage0-evaluation.md)） | 证明本地 SQLite 状态机、v2 逐级递进门控、反橡皮图章硬化（无证据 `pass` 拦截、敷衍理由拦截、9 大设计包必选检查覆盖、原文 `quote` 锚定与 `kind` 自相矛盾检测，见 [绕过修复核验](docs/verification/gate-bypass-hardening-20261019.md)）、旧版 `LEGACY_UNGATED` 兼容恢复与独立 ZIP 解压启动按契约工作 |
 | **多宿主配置同步与历史握手记录**<br>(`engineering × test_passed`，支持；`0.2.0` 原生编排待复验) | `install-codex.py --check`、插件市场清单校验及 [ChatGPT 套件核验](docs/verification/chatgpt-adapter.md)已通过；[Grok 1.0.48 原生握手](docs/verification/grok-native.json)为 `0.1.0` 历史记录 | 证明安装包结构、清单 schema 与本地 MCP 进程握手有效；不把 `0.1.0` 的历史宿主握手记录冒充为 `0.2.0` 真实宿主端到端独立双审已验收 |
 | **真实大模型行为净收益对照评估**<br>(`computational × unassessed`，证据不足 / `not_run`) | 已冻结 [对照评价方案](docs/evaluation-plan.md) 并导出 `A_baseline`、`B_compact`、`B_full`、`E_full_l2_workflow` 四臂提示词包，但外部付费 LLM 调用状态为 `not_run` | **尚未在真实盲评保留集上测量**引入 Parrhesia 后模型夸大率、过度免责率与空泛中立率的统计学改善幅度（检出 15–20 个百分点绝对提升预计需 120–160 个独立案例） |
-| **科学真实性与宿主上下文物理隔离**<br>(系统固有边界) | 引擎校验 SHA-256 哈希、字面 quote 锚点与结构化门控，并记录 `input_manifest` | **结构化门控不等于科学真实性证明**：哈希一致仅证明本地文件字节未篡改，不能识别把伪造材料谎报为真实观测的行为；若宿主未创建独立子代理上下文，必须标明“非独立审查” |
+| **确定性交叉门控 vs. 科学语义真理性**<br>(系统固有边界) | 引擎校验 SHA-256 哈希、原文唯一 `quote` 与主张词项/数值关联、设计包逐级必选检查、`pass` 证据 ID 绑定及文本显式 `kind` 冲突，并记录 `input_manifest` | **确定性交叉核验不等于深层科学真理性证明**：门控能拦截无证据 `pass`、敷衍填表、相邻等级混用、无关 `quote` 与显式矛盾的证据 `kind`；但不能脱离外部可复现执行钩子（`record-exec` / `reproducible-science`）独立证伪精心捏造的源文件文本，也不替代深度科学语义同行评审 |
 
 ---
 

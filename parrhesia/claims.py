@@ -244,13 +244,18 @@ def validate_support(decision, claim):
     if basis["design_family"] not in ("observational", "quasi_experimental", "randomized", "mechanism", "evidence_synthesis"):
         fail("causal_identification_gap", "this design package alone does not identify an empirical causal claim")
     # These are documented assessments, not automated proof of the assumptions.
-    required = [basis["assessment"], *basis["assumptions"], *basis["falsification_sensitivity"]]
+    required = [basis["assessment"], *basis["assumptions"]]
+    if decision["evidence_level"] in ("sensitivity_supported", "counterfactual_supported", "causal_chain_tested"):
+        required.extend(basis["falsification_sensitivity"])
+    elif any(item["status"] == "fail" for item in basis["falsification_sensitivity"]):
+        fail("causal_identification_gap", "failed falsification/sensitivity checks block positive causal support")
     if decision["claim_type"] == "necessity":
         required.append(basis["necessity_test"])
     if decision["claim_type"] == "sufficiency":
         required.append(basis["sufficiency_test"])
-    if any(item["status"] != "pass" or not item["evidence_ids"] for item in required):
-        fail("causal_identification_gap", "positive causal judgments require evidenced identification and falsification/sensitivity assessments; unresolved gaps cannot be relabelled conditional support")
+    from .gates import substantive_reason
+    if any(item["status"] != "pass" or not item["evidence_ids"] or not substantive_reason(item.get("reason")) for item in required):
+        fail("causal_identification_gap", "positive causal judgments require evidenced identification and required sensitivity assessments with substantive reasons; unresolved gaps cannot be relabelled conditional support")
     unknown = {"UNKNOWN", "NA", "N/A", "NOT_IDENTIFIABLE"}
     if any(v.strip().upper() in unknown for k, v in basis["estimand"].items() if k != "intercurrent_events"):
         fail("causal_identification_gap", "the causal estimand must be specified")
