@@ -6,10 +6,12 @@ from .contracts import array, enum, fail, fields, ids, obj, string
 
 GATE_VERSION = 1
 MIN_QUOTE_CHARS = 12
+MIN_CJK_QUOTE_CHARS = 6
 GATE_GUIDANCE = (
     " Current gate_version=1: submit exactly one original-claim stance per claim, even with zero findings, "
     "and acknowledge every unread source in unread_evidence_ids. Positive references each require a unique "
-    "quote of at least 12 non-whitespace characters linked to the claim and location; synthetic cannot support empirical positives. "
+    "quote of at least 12 non-whitespace units (6 CJK characters or 12 ASCII characters) linked to the claim and location; "
+    "synthetic cannot support empirical positives. "
     "Respect check_ceilings, level-progressive design/statistical check requirements, evidenced pass rules, and evidence-kind compatibility "
     "(observational evidence may conditionally support causal_effect only as partially_supported when causal_basis and observational "
     "confounding/robustness checks pass). Adjudication binds each finding to its claim's decision with an incorporated revised_text_quote "
@@ -89,10 +91,25 @@ LEVEL_TIERS = {
     "engineering": {"test_passed": 1, "host_accepted": 2, "user_impact": 3},
 }
 ESSENTIAL_STAT_CHECKS = ("units_sample_size", "estimate_uncertainty")
-TRIVIAL_REASONS = {
+PLACEHOLDER_TOKENS = {
+    "UNKNOWN", "NA", "N/A", "N.A.", "NONE", "NULL", "NIL", "NAN",
+    "NOT_RUN", "NOT RUN", "NOT_IDENTIFIABLE", "NOT IDENTIFIABLE",
+    "NOT_APPLICABLE", "NOT APPLICABLE", "UNSPECIFIED", "UNDEFINED",
+    "UNDETERMINED", "UNCLEAR", "TBD", "TBA", "TBC", "TODO", "WIP",
+    "PENDING", "OMITTED", "MISSING", "EMPTY", "BLANK", "PLACEHOLDER",
+    "SEE ABOVE", "SEE_ABOVE", "SAME AS ABOVE", "AS ABOVE", "SEE BELOW",
+    "SEE_BELOW", "DITTO", "IBID", "IBIDEM", "ETC",
+    "未知", "未明", "不详", "不明", "不清楚", "不确定", "未定",
+    "无", "暂无", "空白", "空", "缺", "缺失", "缺省", "省略", "略",
+    "待定", "待填", "待补充", "待核实", "待确认", "待办", "待考",
+    "未运行", "未执行", "未评估", "未检验", "未测试", "未识别", "不可识别",
+    "不适用", "无适用", "见上", "见上文", "同上", "如上", "见前", "同前",
+    "见下", "见下文", "如下", "无内容", "占位", "占位符",
+}
+TRIVIAL_REASONS = PLACEHOLDER_TOKENS | {
     "OK", "OKAY", "PASS", "PASSED", "YES", "Y", "GOOD", "FINE", "DONE",
-    "VALID", "CHECKED", "TRUE", "VERIFIED", "SURE", "NA", "N/A", "NONE",
-    "NIL", "UNKNOWN", "NOT_RUN", "TBD", "TODO",
+    "VALID", "CHECKED", "TRUE", "VERIFIED", "SURE",
+    "好", "好的", "可以", "行", "通过", "合格", "没问题", "已查", "已核", "正确", "对", "是",
 }
 QUOTE_STOPWORDS = {
     "this", "that", "with", "from", "were", "have", "been", "only", "text",
@@ -102,8 +119,52 @@ QUOTE_STOPWORDS = {
     "such", "when", "what", "where", "which", "while", "there", "their",
     "about", "under", "after", "before",
 }
-CJK_STOPWORDS = {"以下", "这个", "可以", "进行", "通过", "由于", "因此", "一个", "我们", "没有"}
-CONTRADICTING_RELATIONS = ("unsupported", "contradicts", "refutes", "不支持", "反对")
+DISPOSITION_BOILERPLATE = {
+    "note", "noted", "notes", "remark", "remarks", "comment", "comments",
+    "added", "addition", "additional", "supplement", "supplemental", "appendix",
+    "see", "here", "above", "below", "also", "further", "furthermore", "moreover",
+}
+CJK_STOPWORDS = {"以下", "这个", "可以", "进行", "通过", "由于", "因此", "一个", "我们", "没有", "备注", "补充", "说明"}
+CONTRADICTING_RELATIONS = (
+    "unsupported", "contradicts", "contradict", "contradictory", "contradiction",
+    "refutes", "refute", "refuted", "opposes", "oppose", "disproves", "disprove",
+    "falsifies", "falsify", "counterevidence",
+    "不支持", "反对", "矛盾", "相悖", "相冲突", "冲突", "反驳", "证伪", "推翻", "否定",
+)
+CONTRADICTING_PHRASES = (
+    "does not support", "do not support", "doesn't support", "don't support",
+    "did not support", "didn't support", "cannot support", "can't support",
+    "could not support", "fails to support", "fail to support", "failed to support",
+    "insufficient to support", "unable to support", "not supported",
+    "no support", "no empirical support", "no evidence to support", "lacks support",
+    "lack of support", "without support", "contrary to", "inconsistent with",
+    "conflicts with", "conflict with", "at odds with", "against the claim",
+    "against claim", "refutes the claim", "contradicts the claim",
+    "无法支持", "不能支持", "不足以支持", "未能支持", "未支持", "不予支持",
+    "无证据支持", "没有证据支持", "缺乏支持", "并无支持", "毫无支持",
+    "与主张矛盾", "与结论矛盾", "与主张相悖", "与结论相反", "与主张相反",
+    "不一致", "不相符", "相抵触",
+)
+NON_CONTRADICTING_NEGATIONS = (
+    "does not contradict", "do not contradict", "doesn't contradict",
+    "does not refute", "do not refute", "doesn't refute",
+    "not contradictory", "no contradiction", "without contradiction",
+    "不矛盾", "无矛盾", "不冲突", "无冲突", "并不矛盾", "并未反驳",
+)
+ANSI_ESCAPE_RE = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]"
+    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"
+    r"|\x1b[@-Z\\-_]"
+)
+BINARY_SIGNATURES = (
+    b"%PDF-",
+    b"PK\x03\x04",
+    b"\x89PNG",
+    b"\xff\xd8\xff",
+    b"\x1f\x8b",
+    b"GIF8",
+    b"\x7fELF",
+)
 EVIDENCE_KINDS = (
     "observation", "intervention", "quasi_experiment", "mechanistic_assay",
     "prediction_fit", "prediction_internal", "prediction_external", "prediction_prospective",
@@ -148,22 +209,82 @@ def gated(case):
     return True
 
 
+def strip_terminal_escapes(text):
+    if not isinstance(text, str):
+        return ""
+    cleaned = ANSI_ESCAPE_RE.sub("", text)
+    return "".join(c for c in cleaned if c not in "\x07\x08\x0b\x0c\ufeff")
+
+
 def text_content(content):
+    # PDF/archives and NUL-bearing buffers must not masquerade as read UTF-8 text.
+    if content.startswith(BINARY_SIGNATURES) or b"\x00" in content:
+        return None
     try:
         value = content.decode("utf-8")
     except UnicodeDecodeError:
         return None
-    # PDF/archives and NUL-bearing buffers must not masquerade as read UTF-8 text.
-    if content.startswith((b"%PDF-", b"PK\x03\x04", b"\x89PNG")) or any(ord(c) < 32 and c not in "\n\r\t" for c in value):
+    value = strip_terminal_escapes(value)
+    if any(ord(c) < 32 and c not in "\n\r\t" for c in value):
         return None
     return value
 
 
-def meaningful(value):
+def _is_cjk_char(ch):
+    code = ord(ch)
+    return (
+        0x4E00 <= code <= 0x9FFF
+        or 0x3400 <= code <= 0x4DBF
+        or 0x3040 <= code <= 0x30FF
+        or 0xAC00 <= code <= 0xD7AF
+        or 0xF900 <= code <= 0xFAFF
+    )
+
+
+def is_placeholder(value):
+    if not isinstance(value, str):
+        return True
+    visible = "".join(c for c in value if not unicodedata.category(c).startswith("C")).strip()
+    if not visible:
+        return True
+    upper = visible.upper()
+    if upper in PLACEHOLDER_TOKENS:
+        return True
+    stripped = re.sub(r"^[\W_]+|[\W_]+$", "", upper, flags=re.UNICODE)
+    normalized = re.sub(r"[\s_\-]+", " ", stripped).strip()
+    if not stripped or stripped in PLACEHOLDER_TOKENS or normalized in PLACEHOLDER_TOKENS:
+        return True
+    return False
+
+
+def is_contradicting_relation(value):
     if not isinstance(value, str):
         return False
+    norm = re.sub(r"[\s_\-]+", " ", value.strip().lower())
+    if not norm:
+        return False
+    for safe in NON_CONTRADICTING_NEGATIONS:
+        norm = norm.replace(safe, " ")
+    norm = re.sub(r"\s+", " ", norm).strip()
+    if norm in CONTRADICTING_RELATIONS:
+        return True
+    if any(phrase in norm for phrase in CONTRADICTING_PHRASES):
+        return True
+    tokens = set(re.findall(r"[a-z]+", norm))
+    if tokens & {
+        "unsupported", "contradicts", "contradict", "contradictory", "contradiction",
+        "refutes", "refute", "refuted", "opposes", "oppose", "disproves", "disprove",
+        "falsifies", "falsify", "counterevidence",
+    }:
+        return True
+    return any(term in norm for term in ("不支持", "反对", "相悖", "反驳", "证伪", "推翻"))
+
+
+def meaningful(value):
+    if not isinstance(value, str) or is_placeholder(value):
+        return False
     visible = "".join(c for c in value if not unicodedata.category(c).startswith("C")).strip()
-    return quote_length(visible) > 0 and visible.upper() not in ("UNKNOWN", "NA", "N/A", "NONE", "NOT_RUN")
+    return quote_length(visible) > 0
 
 
 def substantive_reason(value):
@@ -173,8 +294,7 @@ def substantive_reason(value):
     cleaned = "".join(c for c in visible if c.isalnum() or c.isspace()).strip().upper()
     if not cleaned or cleaned in TRIVIAL_REASONS:
         return False
-    has_cjk = any("\u4e00" <= c <= "\u9fff" for c in visible)
-    return quote_length(visible) >= (4 if has_cjk else 6)
+    return quote_length(visible) >= 6
 
 
 def effective_status(record, require_evidence=True):
@@ -190,21 +310,29 @@ def effective_status(record, require_evidence=True):
 
 def quote_length(value):
     # Whitespace, format controls, standalone combining marks and private-use
-    # codepoints cannot pad a short anchor. Matching still uses the exact original.
-    return sum(not c.isspace() and unicodedata.category(c)[0] not in "CM" for c in value)
+    # codepoints cannot pad a short anchor. CJK ideographs carry ~2x lexical
+    # density per codepoint relative to ASCII letters, so each CJK character
+    # counts as 2 units (6 CJK characters == 12 units == MIN_QUOTE_CHARS).
+    total = 0
+    for c in value:
+        if c.isspace() or unicodedata.category(c)[0] in "CM":
+            continue
+        total += 2 if _is_cjk_char(c) else 1
+    return total
 
 
 def quote_status(quote, source):
     if quote is None:
         return "not_supplied"
-    if quote_length(quote) < MIN_QUOTE_CHARS:
+    clean_quote = strip_terminal_escapes(quote)
+    if quote_length(clean_quote) < MIN_QUOTE_CHARS:
         return "too_short"
     if source is None:
         return "not_text"
-    first = source.find(quote)
+    first = source.find(clean_quote)
     if first < 0:
         return "mismatch"
-    if source.find(quote, first + 1) >= 0:
+    if source.find(clean_quote, first + 1) >= 0:
         return "ambiguous"
     return "matched"
 
@@ -394,8 +522,8 @@ def required_records(claim, kind, level):
             if card["status"] in ("failed", "missing"):
                 records.append((f"provenance_cards.{card_kind}[{idx}]", {"status": "fail"}))
             elif card_kind == "citation" and card["status"] in ("reported", "checked"):
-                rel = card.get("details", {}).get("support_relation", "").strip().lower()
-                if rel in CONTRADICTING_RELATIONS:
+                rel = card.get("details", {}).get("support_relation", "")
+                if is_contradicting_relation(rel):
                     records.append((f"provenance_cards.citation[{idx}].support_relation", {"status": "fail"}))
     if causal_needed:
         basis = claim.get("causal_basis")
@@ -482,10 +610,12 @@ def validate_mechanical(decision, claim, evidence):
             fail("contradictory_evidence_kind", f"evidence '{ref}' content contradicts declared kind '{ev['kind']}': {contradiction}")
         if ev["kind"] not in compatible:
             fail("incompatible_evidence_kind", f"{ev['kind']} cannot support {kind} × {level}")
-        if ev.get("source_text_status") != "complete":
-            fail("unread_positive_evidence", "positive references require fully available readable source text; register a readable extract instead")
+        status = ev.get("source_text_status")
+        windowed_ok = status == "truncated" and bool(ev.get("excerpt_window", {}).get("quote_anchored"))
+        if status != "complete" and not windowed_ok:
+            fail("unread_positive_evidence", "positive references require readable source text (or a quote-anchored window in a >128 KiB text source); binary or unanchored truncated sources cannot support positives")
         if quote_status(ev.get("quote"), ev.get("source_text")) != "matched" or not meaningful(ev.get("location")):
-            fail("unanchored_positive_evidence", "each positive reference needs a unique quote of at least 12 non-whitespace characters and a concrete location")
+            fail("unanchored_positive_evidence", "each positive reference needs a unique quote of at least 12 non-whitespace units (6 CJK or 12 ASCII characters) and a concrete location")
         if not quote_links_to_claim(ev, claim, decision):
             fail("unlinked_evidence_quote", f"positive reference '{ref}' quote does not share quantitative values, domain terms, or checked-card anchors with the claim")
     allowed_causal_kinds = (*CAUSAL_KINDS, "observation") if obs_causal_ok else CAUSAL_KINDS
@@ -544,6 +674,22 @@ def validate_stances(value, claims, evidence):
         fail("incomplete_stances", "every frozen claim needs exactly one stance")
 
 
+def _substantive_tokens(text):
+    if not isinstance(text, str) or not text:
+        return set()
+    tokens = set(re.findall(r"\d+(?:\.\d+)?", text))
+    words = {
+        w for w in re.findall(r"[a-zA-Z]{4,}", text.lower())
+        if w not in QUOTE_STOPWORDS and w not in DISPOSITION_BOILERPLATE
+    }
+    tokens |= words
+    tokens |= {w[:5] for w in words if len(w) >= 5}
+    tokens |= {w[:4] for w in words if len(w) >= 4}
+    cjk = "".join(c for c in text if "\u4e00" <= c <= "\u9fff")
+    tokens |= {cjk[i:i + 2] for i in range(len(cjk) - 1)} - CJK_STOPWORDS
+    return tokens
+
+
 def validate_disposition(disposition, finding, decision, original):
     if disposition["claim_id"] != finding["claim_id"] or disposition["claim_id"] != decision["claim_id"]:
         fail("finding_decision_mismatch", "disposition must bind finding and decision for the same claim")
@@ -559,10 +705,38 @@ def validate_disposition(disposition, finding, decision, original):
     if "disagreement" in disposition:
         fail("contradictory_resolution", "incorporation cannot also claim disagreement")
     anchor = string(disposition.get("revised_text_quote"), "disposition.revised_text_quote")
-    if quote_status(anchor, decision["revised_text"]) != "matched" or quote_status(anchor, finding["proposed_text"]) != "matched" or anchor in original["text"]:
-        fail("finding_not_incorporated", "anchor must uniquely identify new proposed wording in revised_text, not a preexisting original fragment (at least 12 visible non-whitespace characters)")
-    if decision["revised_text"].strip() == original["text"].strip():
+    if quote_status(anchor, decision["revised_text"]) != "matched" or quote_status(anchor, finding["proposed_text"]) != "matched" or anchor.lower() in original["text"].lower():
+        fail("finding_not_incorporated", "anchor must uniquely identify new proposed wording in revised_text, not a preexisting original fragment (at least 12 visible non-whitespace units)")
+    orig_text = original["text"].strip()
+    prop_text = finding["proposed_text"].strip()
+    rev_text = decision["revised_text"].strip()
+    if rev_text == orig_text:
         fail("finding_not_incorporated", "unchanged wording cannot be marked incorporated; record disagreement explicitly")
+    if orig_text and orig_text.lower() not in prop_text.lower() and orig_text.lower() in rev_text.lower():
+        fail("finding_not_incorporated", "revised_text retains the unrevised original claim verbatim while only appending text; rewrite the claim or record disagreement")
+    orig_tokens = _substantive_tokens(orig_text)
+    prop_tokens = _substantive_tokens(prop_text)
+    rev_tokens = _substantive_tokens(rev_text)
+    anchor_tokens = _substantive_tokens(anchor)
+    issue_tokens = _substantive_tokens(finding.get("issue", ""))
+    issue_impact_tokens = _substantive_tokens(
+        f"{finding.get('issue', '')} {finding.get('decision_impact', '')}"
+    )
+    removed_tokens = orig_tokens - prop_tokens
+    if removed_tokens and removed_tokens <= rev_tokens:
+        fail("finding_not_incorporated", "revised_text retains all substantive original terms that proposed_text replaced")
+    removed_criticized = removed_tokens & issue_tokens
+    if removed_criticized and (removed_criticized & rev_tokens):
+        fail("finding_not_incorporated", "revised_text retains criticized terms from the original claim that the finding's proposed_text removed")
+    added_tokens = prop_tokens - orig_tokens
+    if not anchor_tokens or (added_tokens and not (anchor_tokens & added_tokens)):
+        fail("finding_not_incorporated", "revised_text_quote must anchor substantive new terms introduced by proposed_text, not boilerplate filler")
+    salient_new = added_tokens & issue_impact_tokens
+    if salient_new:
+        if not (rev_tokens & salient_new):
+            fail("finding_not_incorporated", "revised_text must incorporate the finding's issue-linked replacement terms")
+        if disposition["disposition"] == "partial" and not (anchor_tokens & salient_new):
+            fail("finding_not_incorporated", "partial incorporation revised_text_quote must anchor the finding's issue-linked replacement terms, not an unrelated clause")
     if disposition["disposition"] == "accepted":
         if finding["proposed_text"] not in decision["revised_text"]:
             fail("finding_not_incorporated", "accepted incorporation requires the proposed text; deviations need explicit disagreement or partial adoption")

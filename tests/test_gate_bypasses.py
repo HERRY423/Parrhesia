@@ -298,6 +298,197 @@ class GateBypassTests(unittest.TestCase):
         c_syn["design_packages"][0]["checks"]["protocol_search"] = dict(na)
         self.assertEqual(ceiling(c_syn)["allowed_levels"], ["unassessed"])
 
+    def test_issue4_bilingual_placeholders_contradiction_phrases_and_cjk_quote_length(self):
+        from parrhesia.claims import validate_support
+        from parrhesia.gates import ceiling, is_contradicting_relation, meaningful, quote_status
+
+        # 4a. Chinese and English placeholders are rejected across conditions, locations, estimands, and reasons
+        for bad in (
+            "未知", "无", "暂无", "待定", "待填", "见上", "同上", "如上", "略", "不适用", "不可识别",
+            "TBD", "TODO", "SEE ABOVE", "SAME AS ABOVE", "N/A", "NULL", "NIL", "PENDING", "---", " [待定] ",
+        ):
+            self.assertFalse(meaningful(bad), f"placeholder {bad!r} should not be meaningful")
+
+        c_est = self.claim("causal_effect", "identified_under_assumptions", "quasi_experimental")
+        for bad_est in ("未知", "待定", "见上", "TBD", "see above"):
+            c_est["causal_basis"]["estimand"]["treatment"] = bad_est
+            self.assertEqual(ceiling(c_est)["allowed_levels"], ["unassessed", "unidentified"])
+            with self.assertRaises(ContractError) as caught:
+                validate_support({**c_est, "verdict": "supported"}, c_est)
+            self.assertEqual(caught.exception.code, "causal_identification_gap")
+
+        # 4b. Natural-language contradiction phrases in English and Chinese block positive ceilings
+        for phrase in (
+            "does not support", "Paper does not support the claimed effect", "fails to support",
+            "cannot support", "contrary to hypothesis", "inconsistent with findings",
+            "无法支持", "不能支持", "不足以支持该结论", "与主张矛盾", "与结论相悖", "文献证伪该机制",
+        ):
+            self.assertTrue(is_contradicting_relation(phrase), f"contradiction {phrase!r} should be detected")
+            c_cit = self.claim("association", "adjusted", "observational")
+            c_cit["provenance_cards"]["citation"] = [
+                {
+                    "id": "CIT1",
+                    "status": "checked",
+                    "evidence_ids": [self.ev],
+                    "details": {
+                        "locator": "doi:10.1000/test",
+                        "quoted_span": "Synthetic fixture: effect 0.",
+                        "support_relation": phrase,
+                    },
+                }
+            ]
+            self.assertEqual(ceiling(c_cit)["allowed_levels"], ["unassessed"])
+
+        for non_contra in ("supports", "directly supports", "consistent with and does not contradict", "支持，且不矛盾"):
+            self.assertFalse(is_contradicting_relation(non_contra))
+
+        # 4c. Language-aware quote length: 6 CJK characters (12 units) match, <6 CJK characters fail as too_short
+        self.assertEqual(quote_status("显著降低复发", "临床随访显示显著降低复发风险"), "matched")
+        self.assertEqual(quote_status("显著降低", "临床随访显示显著降低复发风险"), "too_short")
+
+    def test_issue5_ansi_terminal_logs_and_large_text_windowed_support(self):
+        # 5a. ANSI-colored terminal logs from record-exec are read as text and support positive verdicts
+        self.cid = self.engine.dispatch("create_case", {"question": "ANSI log?", "draft": "Draft", "writer_context_id": "writer"})["case_id"]
+        ansi_log = (
+            "\x1b[1;32m[PASS]\x1b[0m Regression test suite completed:\r\n"
+            "\x1b[36mmetric:\x1b[0m systolic reduction 8.5 mmHg in N=120 cohort\x08\n"
+        )
+        (self.root / "ansi_exec.log").write_bytes(ansi_log.encode("utf-8"))
+        ev_ansi = self.engine.dispatch(
+            "register_evidence",
+            {
+                "case_id": self.cid,
+                "path": "ansi_exec.log",
+                "provenance": "observed",
+                "kind": "observation",
+                "quote": "systolic reduction 8.5 mmHg in N=120 cohort",
+                "location": "line 2",
+            },
+        )["evidence_id"]
+        self.ev = ev_ansi
+        c_ansi = self.claim("association", "unadjusted", "observational")
+        c_ansi["text"] = "Observed systolic reduction 8.5 mmHg in N=120 cohort."
+        payload_ansi = self.reviewed(c_ansi)
+        payload_ansi["decisions"][0]["revised_text"] = "Systolic reduction 8.5 mmHg in N=120 cohort."
+        self.engine.dispatch("submit_adjudication", payload_ansi)
+        ver_ansi = self.engine.dispatch("verify", {"case_id": self.cid})
+        self.assertEqual(ver_ansi["status"], "pass")
+
+        # 5b. >128 KiB text source with a unique claim-linked quote automatically extracts a readable window
+        # and supports positive verdicts + export once acknowledged in unread_evidence_ids
+        self.cid = self.engine.dispatch("create_case", {"question": "Large log?", "draft": "Draft", "writer_context_id": "writer"})["case_id"]
+        large_text = ("header line\n" * 12000) + "Anchored result: mortality reduction 14.2% in N=850 patients.\n" + ("footer line\n" * 2000)
+        (self.root / "large_anchored.txt").write_text(large_text, encoding="utf-8")
+        ev_large = self.engine.dispatch(
+            "register_evidence",
+            {
+                "case_id": self.cid,
+                "path": "large_anchored.txt",
+                "provenance": "observed",
+                "kind": "observation",
+                "quote": "Anchored result: mortality reduction 14.2% in N=850 patients.",
+                "location": "line 12001",
+            },
+        )["evidence_id"]
+        self.ev = ev_large
+        c_large = self.claim("association", "unadjusted", "observational")
+        c_large["text"] = "Mortality reduction 14.2% in N=850 patients."
+        self.save(c_large)
+        frozen = self.engine.dispatch("freeze", {"case_id": self.cid})
+        for role in ("overclaim", "underclaim"):
+            pkt = self.engine.dispatch("review_packet", {"case_id": self.cid, "role": role})
+            ev_pkt = pkt["evidence"][0]
+            self.assertEqual(ev_pkt["source_text_status"], "truncated")
+            self.assertTrue(ev_pkt["excerpt_window"]["quote_anchored"])
+            self.assertIn("mortality reduction 14.2% in N=850 patients", ev_pkt["source_text"])
+            self.engine.dispatch(
+                "submit_review",
+                {
+                    "case_id": self.cid,
+                    "role": role,
+                    "packet_id": pkt["packet_id"],
+                    "input_digest": frozen["input_digest"],
+                    "reviewer": {"context_id": role, "model": "fixture"},
+                    "covered_claim_ids": ["C1"],
+                    "claim_stances": [{"claim_id": "C1", "stance": "supported", "rationale": "Anchored window verified", "evidence_ids": [ev_large]}],
+                    "unread_evidence_ids": [ev_large],
+                    "findings": [],
+                },
+            )
+        adj_pkt = self.engine.dispatch("adjudication_packet", {"case_id": self.cid})
+        self.engine.dispatch(
+            "submit_adjudication",
+            {
+                "case_id": self.cid,
+                "adjudication_id": adj_pkt["adjudication_id"],
+                "input_digest": adj_pkt["input_digest"],
+                "adjudicator": {"context_id": "writer", "model": "fixture"},
+                "unread_evidence_ids": [ev_large],
+                "dispositions": [],
+                "decisions": [
+                    {
+                        "claim_id": "C1",
+                        "claim_basis": "empirical",
+                        "claim_type": "association",
+                        "evidence_level": "unadjusted",
+                        "scope": c_large["scope"],
+                        "verdict": "supported",
+                        "revised_text": "Mortality reduction 14.2% is associated with exposure in N=850 patients.",
+                        "rationale": "Backed by quote-anchored window",
+                        "evidence_ids": [ev_large],
+                        "confidence": "medium",
+                        "confidence_reason": "Windowed full-hash snapshot",
+                        "boundary": "Observational only",
+                        "reversal_condition": "Null association in adjusted model",
+                    }
+                ],
+            },
+        )
+        exported = self.engine.dispatch("export", {"case_id": self.cid})
+        self.assertEqual(exported["verification"]["status"], "pass")
+
+    def test_issue6_substantive_disposition_incorporation_blocks_appended_or_unrelated_edits(self):
+        # 6a. Keeping the original claim verbatim and appending a sentence from proposed_text is rejected
+        claim = self.claim("association", "unadjusted", "observational")
+        claim["text"] = "The drug universally cures all patients permanently."
+        finding = self.finding()
+        finding.update(
+            issue="Universal permanent cure is unsupported; only short-term symptom association was observed.",
+            decision_impact="Downgrade from universal cure to short-term symptom association",
+            proposed_claim_type="association",
+            proposed_evidence_level="unadjusted",
+            proposed_scope="Outpatient cohort short-term follow-up",
+            proposed_text="Short-term symptom scores were associated with exposure in the outpatient cohort; additional follow-up is noted.",
+        )
+        payload = self.reviewed(claim, finding)
+        disp = payload["dispositions"][0]
+        disp.update(
+            disposition="partial",
+            condition="Partially adopt qualification",
+            revised_text_quote="additional follow-up is noted.",
+        )
+        payload["decisions"][0].update(
+            claim_type="association",
+            evidence_level="unadjusted",
+            scope="Outpatient cohort short-term follow-up",
+            revised_text="The drug universally cures all patients permanently; additional follow-up is noted.",
+        )
+        self.error("finding_not_incorporated", "submit_adjudication", payload)
+
+        # 6b. Slightly tweaking original wording while retaining criticized terms ("universally", "cures", "permanently")
+        # and quoting only the trailing filler clause is also rejected
+        payload["decisions"][0]["revised_text"] = "This drug universally cures patients permanently; additional follow-up is noted."
+        self.error("finding_not_incorporated", "submit_adjudication", payload)
+
+        # 6c. Replacing the claim with only the unrelated trailing clause (omitting issue-linked replacement terms) is rejected
+        payload["decisions"][0]["revised_text"] = "In this study, additional follow-up is noted."
+        self.error("finding_not_incorporated", "submit_adjudication", payload)
+
+        # 6d. Actually replacing the criticized overclaim with the issue-linked replacement succeeds
+        payload["decisions"][0]["revised_text"] = finding["proposed_text"]
+        disp["revised_text_quote"] = "Short-term symptom scores were associated with exposure"
+        self.engine.dispatch("submit_adjudication", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

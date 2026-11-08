@@ -184,7 +184,7 @@ class GateTests(unittest.TestCase):
 
     def test_truncated_source_requires_ack_and_cannot_support_positive(self):
         (self.root / "large.txt").write_text("unique long quotation " + "x" * 140000, encoding="utf-8")
-        self.ev = self.register(path="large.txt", quote="unique long quotation")
+        self.ev = self.register(path="large.txt", quote=None)
         payload = self.review_payload(self.claim())
         self.error("unread_ack_required", "submit_review", payload)
         payload["unread_evidence_ids"] = [self.ev]

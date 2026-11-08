@@ -253,11 +253,10 @@ def validate_support(decision, claim):
         required.append(basis["necessity_test"])
     if decision["claim_type"] == "sufficiency":
         required.append(basis["sufficiency_test"])
-    from .gates import substantive_reason
+    from .gates import meaningful, substantive_reason
     if any(item["status"] != "pass" or not item["evidence_ids"] or not substantive_reason(item.get("reason")) for item in required):
         fail("causal_identification_gap", "positive causal judgments require evidenced identification and required sensitivity assessments with substantive reasons; unresolved gaps cannot be relabelled conditional support")
-    unknown = {"UNKNOWN", "NA", "N/A", "NOT_IDENTIFIABLE"}
-    if any(v.strip().upper() in unknown for k, v in basis["estimand"].items() if k != "intercurrent_events"):
+    if any(not meaningful(v) for k, v in basis["estimand"].items() if k != "intercurrent_events"):
         fail("causal_identification_gap", "the causal estimand must be specified")
     used = {ref for item in required for ref in item["evidence_ids"]}
     if not used <= set(decision["evidence_ids"]):

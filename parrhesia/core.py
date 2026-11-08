@@ -20,7 +20,7 @@ from .contracts import (
 )
 from .claims import classification, describe, scaffold_claim_template, validate_content, validate_support
 from .gates import (
-    GATE_VERSION, GATE_GUIDANCE, EVIDENCE_KINDS, ceiling, gated, quote_status, text_content,
+    GATE_VERSION, GATE_GUIDANCE, EVIDENCE_KINDS, ceiling, gated, quote_status, strip_terminal_escapes, text_content,
     meaningful, validate_basis, validate_disposition, validate_mechanical, validate_stances, validate_unread_ack,
 )
 
@@ -519,8 +519,39 @@ class Engine:
                     source_text = text_content(content) if gated(case) else content.decode("utf-8")
                     if source_text is None:
                         raise UnicodeDecodeError("utf-8", b"\x00", 0, 1, "binary content")
-                    excerpt = content[:PACKET_TEXT_BYTES].decode("utf-8", errors="ignore")
-                    item.update({"snapshot_status": "matched", "source_text": excerpt, "source_text_status": "complete" if excerpt == source_text else "truncated"})
+                    raw_utf8 = source_text.encode("utf-8")
+                    if len(raw_utf8) <= PACKET_TEXT_BYTES:
+                        item.update({"snapshot_status": "matched", "source_text": source_text, "source_text_status": "complete"})
+                    else:
+                        quote = strip_terminal_escapes(entry["quote"]) if entry.get("quote") else None
+                        q_pos = source_text.find(quote) if quote else -1
+                        if q_pos >= 0:
+                            # Center a readable window around the unique quote so >128 KiB files do not require manual slicing.
+                            char_budget = max(len(quote) + 1024, PACKET_TEXT_BYTES // 4)
+                            half = max(0, (char_budget - len(quote)) // 2)
+                            start = max(0, q_pos - half)
+                            end = min(len(source_text), start + char_budget)
+                            excerpt = source_text[start:end]
+                            while len(excerpt.encode("utf-8")) > PACKET_TEXT_BYTES and len(excerpt) > len(quote):
+                                trim = max(1, (len(excerpt) - len(quote)) // 4)
+                                if start < q_pos:
+                                    start = min(q_pos, start + trim)
+                                end = max(q_pos + len(quote), end - trim)
+                                excerpt = source_text[start:end]
+                            item.update({
+                                "snapshot_status": "matched",
+                                "source_text": excerpt,
+                                "source_text_status": "truncated",
+                                "excerpt_window": {"start_char": start, "end_char": end, "total_chars": len(source_text), "quote_anchored": True},
+                            })
+                        else:
+                            excerpt = raw_utf8[:PACKET_TEXT_BYTES].decode("utf-8", errors="ignore")
+                            item.update({
+                                "snapshot_status": "matched",
+                                "source_text": excerpt,
+                                "source_text_status": "truncated",
+                                "excerpt_window": {"start_char": 0, "end_char": len(excerpt), "total_chars": len(source_text), "quote_anchored": False},
+                            })
                 except UnicodeDecodeError:
                     item.update({"snapshot_status": "matched", "source_text": None, "source_text_status": "binary_not_read_by_engine"})
             result.append(item)
@@ -759,7 +790,7 @@ class Engine:
     def _verify(self, db: sqlite3.Connection, case: dict, payload: dict) -> dict:
         fields(payload, {"case_id"}, {"case_id"}, "verify")
         result = {"case_id": case["case_id"], "checked_at": _now(), "status": "pass", "evidence": [], "scientific_validity": "not_established_by_engine", "scope": "content_integrity_and_quote_traceability_only"}
-        packet_status = {e["evidence_id"]: e["source_text_status"] for e in self._packet_evidence(db, case)} if gated(case) else {}
+        packet_map = {e["evidence_id"]: e for e in self._packet_evidence(db, case)} if gated(case) else {}
         for evidence in case["evidence"]:
             row = db.execute("SELECT content FROM evidence_snapshots WHERE case_id=? AND evidence_id=?", (case["case_id"], evidence["evidence_id"])).fetchone()
             content = row[0] if row else None
@@ -791,8 +822,11 @@ class Engine:
                 anchor_status = quote_status(evidence["quote"], text_content(content) if content is not None else None)
             statuses = (snapshot_status, file_status, anchor_status)
             entry_status = "blocked" if any(value in statuses for value in ("mismatch", "ambiguous", "too_short")) else "unverified" if any(value in statuses for value in ("missing", "unreadable", "unknown", "not_text")) else "pass"
-            if gated(case) and entry_status == "pass" and packet_status[evidence["evidence_id"]] != "complete":
-                entry_status = "unverified"
+            if gated(case) and entry_status == "pass":
+                pe = packet_map[evidence["evidence_id"]]
+                windowed_ok = pe["source_text_status"] == "truncated" and bool(pe.get("excerpt_window", {}).get("quote_anchored"))
+                if pe["source_text_status"] != "complete" and not windowed_ok:
+                    entry_status = "unverified"
             if entry_status == "blocked" or (entry_status == "unverified" and result["status"] == "pass"):
                 result["status"] = entry_status
             result["evidence"].append({
@@ -801,7 +835,7 @@ class Engine:
                 "status": entry_status,
             })
             if gated(case):
-                result["evidence"][-1].update(kind=evidence["kind"], source_text_status=packet_status[evidence["evidence_id"]], unread_content_ack=evidence["unread_content_ack"])
+                result["evidence"][-1].update(kind=evidence["kind"], source_text_status=packet_map[evidence["evidence_id"]]["source_text_status"], unread_content_ack=evidence["unread_content_ack"])
         if not case["evidence"]:
             result["status"] = "unverified"
         case["verification"] = result

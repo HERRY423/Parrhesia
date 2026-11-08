@@ -288,7 +288,7 @@ def evaluate_single_case(spec: dict, base_dir: Path) -> dict:
                 "disposition": "accepted",
                 "reason": "Restored supported contribution and removed generic disclaimer inflation",
                 "resolution": "incorporated",
-                "revised_text_quote": spec["restored_text"][:40],
+                "revised_text_quote": spec["restored_text"],
             }
         )
 
