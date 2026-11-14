@@ -95,7 +95,36 @@ class PackagingTests(unittest.TestCase):
             responses = handshake([sys.executable, *arguments], data)
             self.assertEqual([response["id"] for response in responses], [1, 2, 3])
             self.assertEqual(responses[0]["result"]["serverInfo"]["name"], "parrhesia")
-            self.assertEqual({tool["name"] for tool in responses[1]["result"]["tools"]}, {"parrhesia_contract", "parrhesia_select_workspace", "parrhesia_workflow"})
+            tools = responses[1]["result"]["tools"]
+            tool_names = {tool["name"] for tool in tools}
+            legacy_tools = {"parrhesia_contract", "parrhesia_select_workspace", "parrhesia_workflow"}
+            action_tools = {
+                "parrhesia_create_case",
+                "parrhesia_register_evidence",
+                "parrhesia_register_hypothesis",
+                "parrhesia_scaffold_claim",
+                "parrhesia_set_ledger",
+                "parrhesia_freeze",
+                "parrhesia_review_packet",
+                "parrhesia_submit_review",
+                "parrhesia_adjudication_packet",
+                "parrhesia_submit_adjudication",
+                "parrhesia_verify",
+                "parrhesia_get_case",
+                "parrhesia_export",
+                "parrhesia_record_human_decision",
+                "parrhesia_claim_graph",
+                "parrhesia_evaluate_triggers",
+                "parrhesia_record_calibration_outcome",
+                "parrhesia_calibration_report",
+            }
+            expected_tools = legacy_tools | {"parrhesia_validate"} | action_tools
+            self.assertEqual(len(expected_tools), 22)
+            self.assertTrue(legacy_tools.issubset(tool_names))
+            self.assertEqual(tool_names, expected_tools)
+            for tool in tools:
+                self.assertIn("inputSchema", tool)
+                self.assertIn("annotations", tool)
             result = responses[2]["result"]
             self.assertFalse(result["isError"])
             self.assertEqual(Path(result["structuredContent"]["workspace"]), data / "workspace")

@@ -155,7 +155,8 @@ class GateBypassTests(unittest.TestCase):
         payload_unlinked["decisions"][0]["revised_text"] = "Treatment is associated with an 8.5 mmHg systolic reduction."
         self.error("unlinked_evidence_quote", "submit_adjudication", payload_unlinked)
 
-        # 1e. Observational study text registered as kind="intervention" is rejected with contradictory_evidence_kind
+        # 1e. Observational study text registered as kind="intervention" emits non-blocking lexical advisory (not hard fail),
+        # while structurally incompatible kind="observation" for unconditional causal_effect remains blocked.
         self.cid = self.engine.dispatch("create_case", {"question": "Kind contradiction?", "draft": "Draft", "writer_context_id": "writer"})["case_id"]
         (self.root / "obs_as_int.txt").write_text(
             "Observational cohort analysis (non-randomized, N=420): adjusted HR = 1.62.\n",
@@ -176,7 +177,28 @@ class GateBypassTests(unittest.TestCase):
         c_contra = self.claim("causal_effect", "identified_under_assumptions", "randomized")
         c_contra["text"] = "Cohort HR = 1.62 in N=420."
         payload_contra = self.reviewed(c_contra)
-        self.error("contradictory_evidence_kind", "submit_adjudication", payload_contra)
+        res_contra = self.engine.dispatch("submit_adjudication", payload_contra)
+        self.assertEqual(res_contra["state"], "adjudicated")
+        self.assertIn(
+            ("possible_evidence_kind_mismatch", "observational_source_declared_as_intervention"),
+            {(a["hook_code"], a["detail_code"]) for a in res_contra["symmetry_audit"]["lexical_advisories"]},
+        )
+
+        self.cid = self.engine.dispatch("create_case", {"question": "Structural kind gate?", "draft": "Draft", "writer_context_id": "writer"})["case_id"]
+        self.ev = self.engine.dispatch(
+            "register_evidence",
+            {
+                "case_id": self.cid,
+                "path": "obs_as_int.txt",
+                "provenance": "observed",
+                "kind": "observation",
+                "quote": "Observational cohort analysis (non-randomized, N=420)",
+                "location": "line 1",
+            },
+        )["evidence_id"]
+        c_obs_bad = self.claim("causal_effect", "identified_under_assumptions", "observational")
+        c_obs_bad["text"] = "Cohort HR = 1.62 in N=420."
+        self.error("incompatible_evidence_kind", "submit_adjudication", self.reviewed(c_obs_bad))
 
     def test_issue2_level_differentiation_across_association_causal_theory_qualitative_synthesis(self):
         from parrhesia.claims import validate_support

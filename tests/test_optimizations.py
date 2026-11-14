@@ -319,11 +319,15 @@ class OptimizationTests(unittest.TestCase):
         )
         html_text = html_path.read_text(encoding="utf-8")
         self.assertIn("input\\_manifest", md_text)
-        self.assertIn("none\\_role\\_packet\\_only", md_text)
-        self.assertIn("disabled\\_or\\_not\\_used\\_caller\\_reported", md_text)
         self.assertIn("reviewer_input_manifests", html_text)
-        self.assertIn("none_role_packet_only", html_text)
-        self.assertIn("disabled_or_not_used_caller_reported", html_text)
+        for field in ("history_inheritance", "memory_access", "host_surface"):
+            escaped = field.replace("_", "\\_")
+            self.assertIn(f"input\\_manifest.{escaped} | UNKNOWN", md_text)
+            self.assertIn(field, html_text)
+        self.assertIn("UNKNOWN", html_text)
+        for fabricated in ("none_role_packet_only", "disabled_or_not_used_caller_reported"):
+            self.assertNotIn(fabricated, html_text)
+            self.assertNotIn(fabricated.replace("_", "\\_"), md_text)
 
     def test_stage0_evaluation_suite_mechanical_and_prompt_export(self):
         stage0 = _load_script("run_stage0_eval", "scripts/run-stage0-eval.py")

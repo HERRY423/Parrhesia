@@ -30,7 +30,7 @@ class MCPTests(unittest.TestCase):
             responses = self.exchange(workspace, [INITIALIZE, {"jsonrpc": "2.0", "method": "notifications/initialized"}, request("tools/list", id=2), request("tools/call", {"name": "parrhesia_contract"}, 3), request("tools/call", {"name": "parrhesia_workflow", "arguments": {"action": "create_case", "payload": {"question": "这项证据支持什么？", "draft": "中文草稿"}}}, 4)])
             self.assertEqual(len(responses), 4)
             self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-11-25")
-            self.assertEqual(len(responses[1]["result"]["tools"]), 3)
+            self.assertEqual(len(responses[1]["result"]["tools"]), 22)
             self.assertIn("submit_adjudication", responses[2]["result"]["structuredContent"]["contract"])
             self.assertFalse(responses[3]["result"]["isError"])
             case_id = responses[3]["result"]["structuredContent"]["case_id"]
