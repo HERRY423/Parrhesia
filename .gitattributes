@@ -1,0 +1,2 @@
+# Preserve downloaded schema bytes for SHA-256 verification on every platform.
+docs/schemas/agent-plugins-1.0.0/*.schema.json -text

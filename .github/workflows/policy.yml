@@ -20,5 +20,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install schema validation dependency
+        run: python -m pip install jsonschema==4.26.0
+      - name: Require schema validator
+        run: python -c "from jsonschema import Draft202012Validator"
       - run: python scripts/generate-policy.py --check
       - run: python -m unittest discover -s tests -v
