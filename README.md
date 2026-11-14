@@ -6,9 +6,6 @@
 
 **Parrhesia** 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的**本地证据校准与独立双审裁决插件**，配套单源生成的跨平台规则体系 `AGENTS.md`。它通过**认知分工解耦**与**确定性本地状态机（零第三方依赖，仅需 Python 3.11+ 标准库）**，解决大模型在科研分析、工程评测与技术决策中常见的“越级夸大、免责通胀、和稀泥”三大顽疾。
 
-> **当前版本：`0.3.0`**（Claim Schema `v2` · 反空转机械门控 `gate_version=1` · SQLite 事件哈希链 `user_version=2`）
-> - **最新宿主验收（2026-11-14）**：Windows 11 Codex 桌面端实际加载 `0.3.0`，在固定合成场景下完成伤害方向主张审查/导出、待裁定后继状态保持、校准来源绑定、CLI 失败收据→宿主读回及原生文件符号链接拒绝，达到限定范围 **`engineering × host_accepted`**（详见 [0.3.0 宿主验收摘要](docs/verification/release-0.3.0.md) · [0.3 升级说明](docs/migration-0.3.md) · [版本变更记录](CHANGELOG.md)）。
-
 ---
 
 ## 为什么需要 Parrhesia？

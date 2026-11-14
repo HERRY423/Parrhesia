@@ -1,242 +1,290 @@
 # Parrhesia
 
-**Latest acceptance (2026-11-14):** The Windows Codex desktop host loaded 0.3.0. Harm-proposition review/export, pending successor standing, calibration source binding, CLI failure receipts read back by the host, and Windows native file-symlink rejection reached **engineering × host_accepted** within fixed synthetic scenarios. The original symlink test passed with zero skips; earlier permission failures remain preserved. This does not establish independent scientific review, acceptance on other hosts, user_impact, or coverage of all reparse points/races. [Scope, artifact identity and limitations](docs/verification/release-0.3.0.md).
+**Let evidence determine claim strength, and adjudication end hollow neutrality.**
 
-Local repair status (2026-11-14): numerical checks now require explicit applicability, draft replacement edges remain pending, calibration separates verified sources, explicit forecasts and known-truth coverage from unresolved reports, heuristic mappings and replication containment. Timeout/start failures retain durable receipts. The 184-test and existing Stage 0 figures below are the pre-repair historical snapshot; see the [0.3 migration guide](docs/migration-0.3.md); detailed test and acceptance records remain local.
+**Language / 语言**: **[简体中文](README.md)** · English
 
-**Proportion claim strength to evidence. End hollow neutrality through explicit adjudication.**
-
-**Language / 语言**：**[简体中文](README.md)** · English
-
-Parrhesia is a local, zero-dependency evidence-calibration and dual-review adjudication plugin conforming to the [Agent Plugins 1.0.0](https://agent-plugins.org/) specification, paired with a single-source-of-truth cross-platform `AGENTS.md` policy system. The current version is **`0.3.0`** (new cases enforce `schema_version=2` and mechanical gates `gate_version=1`, while preserving legacy records; see the [migration guide](docs/migration-0.3.md)). Source and frozen acceptance artifacts have distinct identities; this documentation update does not rebuild the package or create a GitHub Release.
-
-See [Changelog](CHANGELOG.md) · [0.1.0 → 0.2.0 Migration Guide](docs/migration-0.2.md) · [0.2.0 Release Verification](docs/verification/release-0.2.0.md) · [Stage 0 Evaluation Report](docs/verification/stage0-evaluation.md)
+**Parrhesia** is a local evidence-calibration and dual-review adjudication plugin conforming to the [Agent Plugins 1.0.0](https://agent-plugins.org/) specification, with a single-source cross-platform `AGENTS.md` policy system. Its design separates cognitive roles for independent review and uses a **deterministic local state machine with zero third-party dependencies (Python 3.11+ standard library only)** to address overclaiming, excessive disclaimers, and hollow neutrality in scientific analysis, engineering evaluation, and technical decisions. The measured scope and limits of this design are stated in the evidence-boundary section below.
 
 ---
 
 ## Why Parrhesia?
 
-When a single LLM is asked in one context to draft conclusions, critique over-interpretation, rescue buried findings, and issue a final verdict simultaneously, it predictably falls into three systematic failure modes. Parrhesia resolves this by **architecturally decoupling** these conflicting roles:
+When one model drafts, criticizes, identifies contributions, and decides within a single conversation, three forms of distortion can arise. Parrhesia separates these conflicting responsibilities:
 
-| Failure Mode | Observable Symptom in Daily AI Workflows | Parrhesia's Decoupled Mechanism | Forbidden Proxy Metric |
+| Distortion | Observable symptoms in everyday AI collaboration | Role separation | Invalid proxy metric |
 | :--- | :--- | :--- | :--- |
-| **1. Idealization & Overclaiming**<br>*(Overclaim)* | Leaping from correlation to causal verbs ("drives / regulates / causes"); presenting synthetic runs or internal splits as real-world clinical/production gains; extrapolating local findings universally | **Overclaim Reviewer (`overclaim`)**<br>Audits only upward leaps beyond evidence, unaddressed confounding, and missing controls: *What is the highest level the frozen evidence actually supports?* | "Whether the tone sounds humble or cautious" |
-| **2. Defensive Disclaimer Inflation**<br>*(Underclaim)* | Burying a robust externally validated result or reproducible benchmark gain under generic boilerplate ("given limited sample size and lack of a multicenter Phase III RCT, no conclusion can be drawn, for reference only") | **Underclaim Reviewer (`underclaim`)**<br>Audits only unsupported self-weakening and non-specific disclaimers: *What contribution has the evidence already solidly established?* | "How many disclaimers were deleted" |
-| **3. Hollow Neutrality**<br>*(Fence-Sitting)* | "On one hand... on the other hand... more research is needed," pleasing both sides without weighing competing explanations or stating what would falsify either view | **Single Adjudicator (`adjudicator`)**<br>No voting or averaging; issues a single explicit verdict per claim (`supported`, `partially_supported`, `unsupported`, or `insufficient_evidence`) with an **observable reversal condition** | "Whether the conclusion sounds bold or matches user wishes" |
+| **1. Idealization and overclaiming**<br>*(Overclaim)* | Turning association into “drives/regulates/causes”; presenting synthetic tests or one successful run as clinical or production benefit; generalizing beyond tested conditions | **Overclaim reviewer (`overclaim`)** checks overstated language, unresolved confounding, and inference gaps: *What is the strongest claim the evidence permits?* | “Does the tone sound humble?” |
+| **2. Excessive defensiveness and disclaimer inflation**<br>*(Underclaim)* | Erasing robust external validation or measured improvements with boilerplate about limited samples, missing multicenter trials, or “for reference only”; repeatedly weakening every paragraph | **Underclaim reviewer (`underclaim`)** identifies unjustifiably weakened contributions and uninformative disclaimers: *What does the evidence already establish?* | “How many disclaimers were removed?” |
+| **3. Hollow neutrality** | Listing both sides and calling for more research without substantive comparison, returning responsibility for the decision to the user | **Single adjudicator (`adjudicator`)** does not vote or average positions; accepts, partially accepts, or rejects each finding and gives a verdict with **observable reversal conditions** | “Is the conclusion decisive or pleasing to the user?” |
 
-### Before vs. After Calibration at a Glance
+### Calibration at a glance
 
-- ❌ **Overclaim Anti-Pattern**: "Single-cell co-expression and significant regression ($p=0.002$) prove transcription factor X activates pathway Y and causes drug resistance."
-- ❌ **Underclaim (Disclaimer Inflation) Anti-Pattern**: "Although the model achieved AUROC 0.84 (95% CI 0.77–0.90) in an independent external cohort ($N=120$), due to limited sample size, potential unknown bias, and lack of a Phase III randomized trial, no firm conclusion can be drawn; for reference only."
-- ✅ **Parrhesia Calibrated Statement**:
-  > "In the independent external validation cohort ($N=120$), the model demonstrates robust external discrimination for 1-year recurrence (`prediction × externally_validated`, **supported**; AUROC 0.84, 95% CI 0.77–0.90), supporting its use as a candidate risk-stratification tool in similarly distributed populations; net clinical decision utility (`utility`) awaits prospective interventional evaluation. If calibration slope falls outside $[0.8, 1.2]$ in subsequent multi-center cohorts, narrow applicability to the original center distribution."
+- ❌ **Overclaim**: “Single-cell co-expression and significant regression ($p=0.002$) prove that transcription factor X activates pathway Y and causes resistance.”
+- ❌ **Excessive disclaimer**: “Although the model achieved AUROC 0.84 (95% CI 0.77–0.90) in an independent external cohort ($N=120$), the limited sample, possible unknown biases, and absence of multicenter phase III randomized trials prevent any firm conclusion; for reference only.”
+- ✅ **Calibrated wording**:
+  > “In an independent external validation cohort ($N=120$), the model showed robust external discrimination for one-year recurrence (`prediction × externally_validated`, **supported**; AUROC 0.84, 95% CI 0.77–0.90), supporting its candidacy for risk stratification in populations from the same distribution. Net clinical decision benefit (`utility`) remains to be evaluated prospectively. If subsequent cross-center calibration slopes fall outside $[0.8, 1.2]$, applicability will be narrowed to populations matching the original center.”
 
-**Three Non-Negotiable Baselines** (see [Single Policy Source](policy/parrhesia-policy.md)):
-1. **Priority Hierarchy**: Platform system instructions > Platform developer instructions > User message. Within those bounds: **Data confidentiality & spend caps > Evidence truth > Proportional claim strength > Full expression of supported contributions > Efficiency**.
-2. **Never fabricate certainty, and never treat absence of evidence as evidence of absence**: Fabricating data, numbers, citations, executions, or searches is strictly forbidden. When evidence is insufficient, record `insufficient_evidence` explicitly as a formal judgment—neither inflating it into support nor conflating it with `unsupported`.
-3. **User preference is not evidence**: The user controls task scope, output format, language, and workflow tier, but never dictates evidence grades or verdicts.
+**Three non-negotiable boundaries** (see the [single policy source](policy/parrhesia-policy.md#唯一优先级)):
+
+1. **Instruction priority and tradeoffs**: platform system instructions > platform developer instructions > user messages. Within that boundary: **data confidentiality and spending limits > evidence truthfulness > calibrated strength > full expression of supported contributions > efficiency**.
+2. **Never fabricate certainty or treat missing evidence as counterevidence**: do not invent data, numbers, citations, execution, or searches. `insufficient_evidence` is a legitimate conclusion, distinct from both support and `unsupported`.
+3. **User expectations are not evidence**: users choose scope, format, language, and workflow simplicity, but cannot dictate evidence grades or verdicts.
 
 ---
 
-## Installation & Multi-Host Integration
+## Four progressive workflows with minimal overhead (`L0` / `L1` / `L1-Explore` / `L2`)
 
-Running the local MCP server and CLI requires **Python 3.11+** using **only the Python standard library** (zero third-party dependencies; no `pip install` required).
+Parrhesia keeps routine tasks lightweight while applying checks to consequential conclusions. Agents select a tier by task and identify it on the first line; users need not memorize tool payloads.
 
-### Method 1: Codex Plugin Marketplace (GUI / CLI)
+| Tier | Typical tasks | Interaction and output | Database and dual review? |
+| :--- | :--- | :--- | :--- |
+| **`[L0]`** | Translation, formatting, a single verifiable fact, local code edits, pure numerical calculations | **Give the result directly**, without extra structure | No |
+| **`[L1]`**<br>*(default)* | Explanations, comparisons, evidence judgments, interim conclusions | Natural prose covering **① verdict and `claim_type × evidence_level + scope` · ② traceable evidence and strongest rival explanation · ③ observable reversal conditions · ④ next action · ⑤ relevant failed/unknown checks** | No; lightweight internal checks |
+| **`[L1-Explore]`** | Brainstorming, hypotheses, mechanism reasoning, experimental/statistical design | **2–3 exploratory hypothesis cards**, each containing **① strongest rival · ② discriminating experiment · ③ cost · ④ stopping rule · ⑤ falsification condition** | No; supports exploration |
+| **`[L2]`** | Figure captions, abstracts, manuscripts, formal reports, submission materials, core-claim reviews, responses to challenges | Review **3–5 core claims at a time**, not the whole document: register → freeze packets → overclaim/underclaim reviews in two clean contexts → adjudicate → verify provenance and export atomically | **Yes**; SQLite persistence and mechanical gates |
 
-#### 1. GUI "Add Plugin Marketplace" Dialog (Recommended)
+> 💡 **Recommended daily workflow**: Use `L1-Explore` throughout exploration to narrow hypotheses and discriminating experiments; send only 3–5 core claims to `L2` during confirmation; use full dual review for captions, abstracts, manuscripts, or formal reports.
 
-In the Codex desktop app's Plugin Manager, click **Add Plugin Marketplace** (*Add from a GitHub repository, Git URL, or local folder*) and fill in the dialog fields as follows:
+---
 
-| Dialog Field | Value to Enter | Notes |
+## Installation and host integration
+
+The local MCP server and CLI require only **Python 3.11+**, with **zero third-party dependencies** and no external packages to install with `pip`.
+
+### Option 1: Codex plugin marketplace (GUI / CLI)
+
+#### 1. “Add plugin marketplace” in the GUI (recommended)
+
+In the Codex desktop plugin management page, choose **Add plugin marketplace** (from a GitHub repository, Git URL, or local folder):
+
+| Field | Value | Notes |
 | :--- | :--- | :--- |
-| **Source** (*来源*) | `HERRY423/Parrhesia`<br>*(or `https://github.com/HERRY423/Parrhesia.git`)* | For offline use or a local clone, you may also select the local repository root containing `.agents/plugins/marketplace.json` (e.g., `C:\Parrhesia`) |
-| **Git Ref** (*Git 引用*) | `main` | Tracks the latest `0.2.0` branch; pin a specific tag or commit SHA if needed |
-| **Sparse Path** (*稀疏路径*) | **Leave blank** | The marketplace manifest lives at the repository root. **Do not** type the gray placeholder `plugins/codex` |
+| **Source** | `HERRY423/Parrhesia`<br>*(or `https://github.com/HERRY423/Parrhesia.git`)* | For an offline package or local clone, select the repository root containing `.agents/plugins/marketplace.json`, such as `C:\Parrhesia` |
+| **Git ref** | `main` | Gets the latest `0.3.0` updates; use a commit or tag to pin a version |
+| **Sparse path** | **Leave blank** | The plugin manifest is at the root; do **not** copy the placeholder `plugins/codex` |
 
-Click **Add Marketplace**, then select **Parrhesia Marketplace** and install **Parrhesia**.
+Click **Add marketplace**, then select **Parrhesia Marketplace** and install **Parrhesia**.
 
-#### 2. Codex CLI Installation
+#### 2. Codex CLI installation
 
 ```powershell
-# Add the marketplace from GitHub and install the plugin
+# Add the GitHub marketplace and install the plugin
 codex plugin marketplace add HERRY423/Parrhesia --ref main
 codex plugin add parrhesia@parrhesia-marketplace
 
-# (Optional) Add the marketplace from a local checkout
+# Optional: add a local clone
 codex plugin marketplace add C:\Parrhesia
 ```
 
-#### 3. Sync Compact Global Policy & On-Demand L2 Reference Skill for Codex
+#### 3. Sync Codex global compact rules and the L2 scientific reference skill
 
-To avoid bloating every conversation with the `49,260 B` (~`48.1 KiB`) full policy file, Codex uses a **compact resident policy block (`9,101 B` / ~`8.9 KiB`, strictly `< 10 KiB`) + on-demand `parrhesia-l2-reference` skill (`19,764 B`) + isolated role packets**:
+Codex uses a **resident compact policy block (`< 10 KiB`) + on-demand `parrhesia-l2-reference` skill + separate role packets**, avoiding a roughly `48 KiB` full policy in routine context:
 
 ```powershell
-# Sync the compact block into ~/.codex/AGENTS.md and install ~/.codex/skills/parrhesia-l2-reference/SKILL.md
+# Sync compact rules to ~/.codex/AGENTS.md and the L2 reference skill to ~/.codex/skills/parrhesia-l2-reference/SKILL.md
 python scripts/install-codex.py
 
-# Read-only check verifying ~/.codex is in sync with policy/parrhesia-policy.md
+# Read-only consistency check against the repository policy source
 python scripts/install-codex.py --check
 ```
 
 ---
 
-### Method 2: Claude Code Marketplace & Standard Agent Plugins 1.0.0 Hosts
+### Option 2: Claude Code marketplace and Agent Plugins 1.0.0 clients
 
-#### 1. Claude Code CLI
+#### 1. Claude Code CLI installation
 
 ```bash
 claude plugin marketplace add HERRY423/Parrhesia
 claude plugin install parrhesia@parrhesia-marketplace
 ```
 
-#### 2. Standard Agent Plugins 1.0.0 Clients
+#### 2. Standard Agent Plugins 1.0.0 clients
 
-Any host supporting Agent Plugins 1.0.0 discovers `plugin.json`, `mcp.json`, and `skills/` at the repository root and exposes **22 local stdio MCP tools**, read-only resources, and role prompt templates:
-- **18 per-action typed tools (`parrhesia_<action>`)**: Dedicated schemas and annotations for `create_case`, `register_evidence`, `register_hypothesis`, `scaffold_claim`, `set_ledger`, `freeze`, `review_packet`, `submit_review`, `adjudication_packet`, `submit_adjudication`, `verify`, `get_case`, `export`, `record_human_decision`, `claim_graph`, `evaluate_triggers`, `record_calibration_outcome`, and `calibration_report`.
-- **`parrhesia_validate`**: Zero-side-effect SQLite `ROLLBACK` preflight validator returning a dry-run preview or a structured `repair_hint` on contract failure.
-- **3 backward-compatible legacy tools**: `parrhesia_contract` (read workspace and contract), `parrhesia_select_workspace` (explicitly bind a user-authorized directory), and `parrhesia_workflow` (generic action dispatcher).
-- **MCP Resources, Prompts & Actionable Errors**: Concrete resources `parrhesia://contract`, `parrhesia://cases`, `parrhesia://claim-graph`, `parrhesia://calibration`, URI templates `parrhesia://cases/{case_id}`, `/ceilings`, `/triggers`, `/packet/{role}`, prompts `parrhesia_review_overclaim`, `parrhesia_review_underclaim`, `parrhesia_adjudicate`, and structured `repair_hint` fields on JSON-RPC tool errors.
+Compatible hosts can load `plugin.json`, `mcp.json`, and `skills/` at the repository root, discovering **22 local tools**, read-only resources, and role prompts through stdio MCP:
+
+- **18 typed action tools (`parrhesia_<action>`)**: `create_case`, `register_evidence`, `register_hypothesis`, `scaffold_claim`, `set_ledger`, `freeze`, `review_packet`, `submit_review`, `adjudication_packet`, `submit_adjudication`, `verify`, `get_case`, `export`, `record_human_decision`, `claim_graph`, `evaluate_triggers`, `record_calibration_outcome`, and `calibration_report`, each with JSON Schema and permission annotations.
+- **`parrhesia_validate`**: read-only preflight in a SQLite transaction with automatic `ROLLBACK`; failures return structured `repair_hint` guidance.
+- **3 backward-compatible general tools**: `parrhesia_contract`, `parrhesia_select_workspace`, and `parrhesia_workflow`.
+- **Read-only MCP resources and role prompts**: `parrhesia://contract`, `parrhesia://cases`, `parrhesia://claim-graph`, `parrhesia://calibration`; templates `parrhesia://cases/{case_id}`, `/ceilings`, `/triggers`, `/packet/{role}`; prompts `parrhesia_review_overclaim`, `parrhesia_review_underclaim`, and `parrhesia_adjudicate`.
 
 ---
 
-### Method 3: Grok Build CLI Project Adapter
+### Option 3: Grok Build CLI project adapter
 
-For Grok Build CLI (verified on `grok 1.0.48` for manifest validation and project MCP discovery), an idempotent installer deploys both `parrhesia-review` and `parrhesia-l2-reference`, backs up existing files, merges `.mcp.json`, and maintains a compact `AGENTS.md` policy block by default (`9,101 B`; pass `--policy full` for the complete block):
+The idempotent installer syncs both `parrhesia-review` and `parrhesia-l2-reference`, backs up existing files, safely merges project `.mcp.json`, and maintains a compact `AGENTS.md` policy block by default (`--policy full` selects the full policy):
 
 ```powershell
-# Install into a target project (or run & .\scripts\install-grok.ps1 -Project C:\YourProject)
+# Install into a project (or run & .\scripts\install-grok.ps1 -Project C:\YourProject)
 python scripts/install-grok.py --project C:\YourProject
 
-# Read-only integrity/drift check or clean uninstall
+# Read-only hash/configuration/skill/source checks, or safe uninstall
 python scripts/install-grok.py --project C:\YourProject --check
 python scripts/install-grok.py --project C:\YourProject --uninstall
 
-# Verify Grok configuration discovery
+# Inspect Grok configuration discovery in the project
 grok --cwd C:\YourProject inspect
 ```
-*See [Grok Integration Guide](docs/grok-integration.md).*
+
+See the [Grok integration guide](docs/grok-integration.md).
 
 ---
 
-### Method 4: Antigravity IDE / CLI Host Adapter
+### Option 4: Antigravity host adapter
 
-For Google Antigravity (Antigravity IDE / Antigravity 2.0 / `agy` CLI), a self-contained adapter writes a compliant `.agents/plugins/parrhesia/` bundle (allowlisted `plugin.json`, `mcp_config.json`, frontmatter-free `< 24,000 B` compact `rules/parrhesia.md`, both `parrhesia-review` and `parrhesia-l2-reference` skills, and a silent read-only `SessionStart` SQLite hook) without ever touching `~/.gemini/config/config.json`:
+For Google Antigravity (Antigravity IDE / Antigravity 2.0 / `agy` CLI), the self-contained adapter generates `.agents/plugins/parrhesia/` with an explicit allowlist: `plugin.json`, `mcp_config.json`, frontmatter-free compact `rules/parrhesia.md` (`< 24,000 B`), two skills, and a silent read-only `SessionStart` SQLite status hook. It does not modify `~/.gemini/config/config.json`.
 
 ```powershell
-# Install into a target project (or run & .\scripts\install-antigravity.ps1 -Project C:\YourProject)
+# Install into a project (or run & .\scripts\install-antigravity.ps1 -Project C:\YourProject)
 python scripts/install-antigravity.py --project C:\YourProject
 
-# Read-only check, clean uninstall, or isolated user-target install
+# Read-only limits/integrity check, safe uninstall, or installation into an explicitly isolated directory
 python scripts/install-antigravity.py --project C:\YourProject --check
 python scripts/install-antigravity.py --project C:\YourProject --uninstall
 python scripts/install-antigravity.py --scope user --target C:\CustomAntigravityHome
 ```
-*See [Antigravity Integration Guide](docs/antigravity-integration.md).*
+
+See the [Antigravity integration guide](docs/antigravity-integration.md).
 
 ---
 
-### Method 5: ChatGPT Web / Custom GPT Text Protocol (Zero Local Dependencies)
+### Option 5: ChatGPT web / Custom GPT text-only protocol (no local dependencies)
 
-Run the L2 dual-review workflow in ChatGPT Web across isolated chat sessions without local Python execution:
-1. Paste [templates/AGENTS.parrhesia.chatgpt.md](templates/AGENTS.parrhesia.chatgpt.md) into your ChatGPT Project Instructions or Custom GPT Instructions.
-2. Generate the handoff kit into a new directory:
+Run the L2 dual-review protocol across separate web conversations without a local Python or MCP process:
+
+1. Paste the [ChatGPT policy template](templates/AGENTS.parrhesia.chatgpt.md) into ChatGPT Project Instructions or Custom GPT Instructions.
+2. Generate the standard handoff kit (output directory must not exist):
    ```powershell
    python scripts/prepare-chatgpt.py --output artifacts/chatgpt-kit
    ```
-3. Follow the [ChatGPT Integration Guide](docs/chatgpt-integration.md): freeze the ledger with `01-frozen-input.md` (or `01-frozen-input-blind.md`) → run `02-overclaim.md` and `03-underclaim.md` in two fresh chat sessions → adjudicate with `04-adjudication.md` → archive with `05-handoff-record.md`.
+3. Follow the [ChatGPT integration guide](docs/chatgpt-integration.md): freeze the ledger with `01-frozen-input.md` (or `01-frozen-input-blind.md`), paste `02-overclaim.md` and `03-underclaim.md` into two new separate conversations, adjudicate in the main conversation using `04-adjudication.md`, and archive with `05-handoff-record.md`.
 
 ---
 
-## Progressive Four-Tier Workflow (`L0` / `L1` / `L1-Explore` / `L2`)
+## Core features and architecture: four pillars in `0.3.0`
 
-Parrhesia avoids bureaucracy on trivial tasks while enforcing strict accountability on high-stakes conclusions. Every final response begins with the active tier tag on its own first line:
+### Pillar 1: Two-dimensional evidence coordinates — `claim_type × evidence_level + scope`
+
+A single ladder from description to association, prediction, mechanism, and causation wrongly suggests that prediction is inferior or repeated associations become causal. Parrhesia uses **12 claim types, evidence levels within each type, and explicit scope**, with `claim_basis` distinguishing `empirical` observations, `synthetic` examples, and `formal` proofs.
+
+| Claim type (`claim_type`) | Within-type levels (all include `unassessed`) | Wording and scope boundary |
+| :--- | :--- | :--- |
+| **Description** `description` | `recorded` · `measurement_checked` · `replicated` | Describe observed objects only; do not infer populations or mechanisms |
+| **Association** `association` | `unadjusted` · `adjusted` · `robust_association` | Say “associated with”; adjustment or robustness does not eliminate unmeasured confounding |
+| **Prediction** `prediction` | `apparent` · `internally_validated` · `externally_validated` · `prospectively_evaluated` | State target, time, and population; external discrimination is not clinical utility or causal mechanism |
+| **Causal effect** `causal_effect` | `unidentified` · `identified_under_assumptions` · `sensitivity_supported` | Causal language applies only to the specified `estimand`, design, and identification assumptions |
+| **Mechanism** `mechanism` | `compatible` · `component_tested` · `causal_chain_tested` | Co-expression/enrichment provides compatible clues; a full chain requires examining alternative pathways |
+| **Necessity** `necessity` | `bounded_test` · `counterfactual_supported` | Whether $Y$ can still occur after removing $X$ in the specified context; **not sufficiency** |
+| **Sufficiency** `sufficiency` | `bounded_test` · `counterfactual_supported` | Whether introducing $X$ produces $Y$ in the specified context; **not necessity** |
+| **Synthesis** `synthesis` | `mapped` · `critically_appraised` · `synthesized_with_uncertainty` | Inherits study bias and dependence; pooling does not create causal identification |
+| **Theory** `theory` | `conjectured` · `proved_under_assumptions` · `independently_checked` | Requires `claim_basis="formal"`; numerical examples do not replace proofs |
+| **Qualitative** `qualitative` | `situated_description` · `interpretation_audited` · `triangulated` | Preserve context and negative cases; do not impose population frequencies or $p$-values |
+| **Computational performance** `computational` | `benchmark_measured` · `reproduced` · `externally_evaluated` | Report datasets, budget-matched baselines, and seeds; leaderboard results are not deployment benefit |
+| **Engineering** `engineering` | `test_passed` · `host_accepted` · `user_impact` | Unit tests do not replace real host acceptance; handshakes do not establish user benefit |
+
+- **Proposition support is separate from effect direction**: `supported` means the stated proposition has evidence, not necessarily `benefit`. Harm or null-effect propositions may also be supported when evidence and `claim_direction` match; opposite directions are blocked.
+- **Empirical causality and conditional observational support**: unconditional empirical causal support requires `intervention` or `quasi_experiment` evidence. Observational evidence may receive **`partially_supported`** when a complete, evidence-bound `causal_basis` specifies the estimand, identification assumptions, and passing falsification/sensitivity checks, core observational design checks pass, and `condition` states the untestable assumptions.
+
+---
+
+### Pillar 2: Structured scientific checks and computable effects (`effect_records`)
+
+In an `L2` ledger, `scaffold_claim` generates an honest all-`unknown` / `not_run` claim skeleton. Attach records appropriate to the actual study design:
+
+- **9 design packages (`design_packages`)**: `observational`, `quasi_experimental`, `randomized`, `prediction`, `ml`, `mechanism`, `evidence_synthesis`, `theory`, and `qualitative`. Core checks cannot be bypassed with `not_applicable`; adjacent within-type levels have progressively stronger requirements.
+- **8 statistical-report dimensions (`statistical_report`) and 4 provenance-card kinds (`provenance_cards`)**: sample size/independent units, estimand/scale, effects/uncertainty, assumptions, missingness/exclusions, multiplicity, direct baseline comparisons, and robustness/limits; attach `citation`, `number`, `execution`, and `search` cards.
+- **Computable effects (`effect_records`)** separate `primary` / `benchmark` from `secondary` / `safety` / `exploratory` / `sensitivity` endpoints and check only declared applicable conditions:
+  - **Interval–$p$ consistency**: records declaring matching two-sided unadjusted `inference_method="wald"` or `"log_wald"` are checked for mathematical compatibility of estimate, interval, and $p$-value. Other or undeclared methods remain `unassessed`.
+  - **GRIM and integer-denominator granularity**: proportion/accuracy records declaring `count_basis="unweighted_binary"` are checked for integer feasibility of sample size $n$, event counts, and decimal precision.
+  - **Primary null-crossing and secondary separation**: directional `primary` / `benchmark` claims whose intervals cross the null are blocked from positive verdicts (`primary_effect_crosses_null`); supported primary benefit can coexist with nonsignificant secondary or safety endpoints.
+
+---
+
+### Pillar 3: Mechanical gates against empty workflows and rubber stamping (`gate_version=1`)
 
 ```text
-Incoming Task Request
-  │
-  ├─► Translation / formatting / single verifiable fact / local code edit / raw calculation?
-  │     └──► [L0] Execute directly with zero structural overhead
-  │
-  ├─► Brainstorming / hypothesis generation / mechanism sketching / study or identification design?
-  │     └──► [L1-Explore] Lightweight Exploration Ledger (no L2 database or dual review)
-  │            Maintain 2–3 candidate hypothesis cards (explicitly marked exploratory), each with 5 fields:
-  │            ① Strongest Rival · ② Discriminating Experiment · ③ Cost · ④ Stopping Rule · ⑤ Kill Condition
-  │
-  ├─► Everyday explanation / comparison / recommendation / evidence judgment / EDA summary?
-  │     └──► [L1] Default Calibration Contract
-  │            ① Opening verdict + claim_type × evidence_level + scope
-  │            ② Verifiable basis (name the strongest rival explanation on research questions)
-  │            ③ Observable reversal condition · ④ Immediate next action · ⑤ Exception report on failed baseline checks
-  │
-  └─► Figure legends / abstracts / manuscript text / formal reports / re-evaluating challenged core claims?
-        └──► [L2] Frozen Ledger + Blind Dual Review + Single Adjudication (3–5 core claims per case)
+Draft + source snapshots (reject symlinks/path escape) + scaffold_claim + Ledger v2
+                                      |
+                                      v  freeze (SHA-256 revision digest; case-level blind=true)
+                    +-----------------+-----------------+
+                    v clean context 1                   v clean context 2
+             Overclaim packet                    Underclaim packet
+         [0–3 substantive findings,             [0–3 substantive findings,
+          stance on every claim]                 stance on every claim]
+                    +-----------------+-----------------+
+                                      v  both reviews complete (>3 findings: needs_split)
+                              Single adjudication
+            [per-claim verdict; substantive revised_text_quote or explicit disagreement]
+                                      |
+                                      v  verify & export (gates + non-blocking symmetry_audit)
+                  Read-only HTML / Markdown report / SQLite event hash chain
 ```
 
----
+The kernel rejects submissions that use unsupported `pass` labels, placeholder reasons, unrelated header quotes, or nominal acceptance without actual revision. Rejection does not advance the state machine.
 
-## Core Architecture: 2D Evidence Classification & Eight Anti-Rubber-Stamping Gates
-
-### 1. Beyond a Single Linear Ladder: `claim_type × evidence_level + scope` (Claim Schema v2)
-
-A single global ladder (`descriptive → association → predictive → mechanistic → causal`) falsely implies that prediction is "lower" than mechanism or that repeated correlations become causal. Parrhesia `0.2.0` classifies claims along **12 claim types × type-local evidence levels + explicit scope**, paired with `claim_basis` (`empirical` / `synthetic` / `formal`):
-
-| Claim Type (`claim_type`) | Type-Local Evidence Levels (`evidence_level`, each starting at `unassessed`) | Wording & Authorization Boundary |
+| Gate | Typical evasion | Deterministic check |
 | :--- | :--- | :--- |
-| `description` | `recorded` · `measurement_checked` · `replicated` | Describes observed objects only; no population generalization or mechanism |
-| `association` | `unadjusted` · `adjusted` · `robust_association` | Use "associated with"; covariate adjustment does not eliminate unmeasured confounding |
-| `prediction` | `apparent` · `internally_validated` · `externally_validated` · `prospectively_evaluated` | State target, horizon, and population; external discrimination $\neq$ clinical utility or mechanism |
-| `causal_effect` | `unidentified` · `identified_under_assumptions` · `sensitivity_supported` | Causal verbs apply only to the specified `estimand`, design family, and identification assumptions |
-| `mechanism` | `compatible` · `component_tested` · `causal_chain_tested` | Co-expression/enrichment is at most `compatible`; full chain requires orthogonal rescue & rival exclusion |
-| `necessity` | `bounded_test` · `counterfactual_supported` | Whether removing $X$ prevents $Y$ in the specified context; **never implies sufficiency** |
-| `sufficiency` | `bounded_test` · `counterfactual_supported` | Whether introducing $X$ produces $Y$ in the specified context; **never implies necessity** |
-| `synthesis` | `mapped` · `critically_appraised` · `synthesized_with_uncertainty` | Inherits primary-study bias and dependence; pooling never manufactures causal identification |
-| `theory` | `conjectured` · `proved_under_assumptions` · `independently_checked` | Requires `claim_basis="formal"`; numerical examples do not replace proof |
-| `qualitative` | `situated_description` · `interpretation_audited` · `triangulated` | Preserves context and negative cases; do not impose population frequencies or $p$-values |
-| `computational` | `benchmark_measured` · `reproduced` · `externally_evaluated` | Report datasets, budget-matched baselines, and seeds; leaderboard gain $\neq$ deployment impact |
-| `engineering` | `test_passed` · `host_accepted` · `user_impact` | Passing unit tests $\neq$ live host acceptance; protocol handshake $\neq$ measured user benefit |
-
-### 2. Eight Deterministic Anti-Rubber-Stamping Gates (`gate_version=1`)
-
-To prevent an agent from gaming the ledger by filling every check with `pass` + `"ok"`, marking core checks `not_applicable`, quoting an unrelated 12-character header, or mislabeling observational data as `intervention`, `parrhesia/gates.py` enforces eight deterministic structural and cross-reference gates:
-
-1. **Full 9-Family Essential Check Coverage & Level-Progressive Ceilings (`check_ceilings` & `FAMILY_TIER_CHECKS`)**:
-   - **All 9 design families enforced**: Core design checks cannot be bypassed via `not_applicable` in *any* family—including `theory` (`definitions_assumptions`, `proof`), `qualitative` (`epistemic_position`, `sampling_context`, `analysis_audit`), and `evidence_synthesis` (`protocol_search`, `eligibility_selection`, `bias_dependence`), alongside `observational`, `quasi_experimental`, `randomized`, `prediction`, `ml`, and `mechanism`.
-   - **Mechanical differentiation across adjacent `evidence_level`s**: Adjacent grades within the same `claim_type` require strictly expanding design, fixed, and statistical checks (e.g., `association`: `unadjusted < adjusted < robust_association`; `causal_effect`: `identified_under_assumptions` requires passing identification assumptions, whereas `sensitivity_supported` additionally requires passing `falsification_sensitivity` and tier-3 sensitivity/robustness checks; `theory`, `qualitative`, and `synthesis` likewise require progressive check tiers).
-2. **Evidence-Bound Substantive `pass`, Bilingual Placeholder Blocking & Decision Citation Verification (`effective_status`, `is_placeholder` & `uncited_check_evidence`)**: Any `pass` in `design_packages`, `statistical_report`, or `causal_basis` must carry non-empty `evidence_ids` and a substantive `reason` (bilingual rubber-stamp placeholders such as `"ok"`, `"pass"`, `"yes"`, `"done"`, `"TBD"`, `"TODO"`, `"see above"`, `"未知"`, `"无"`, `"待定"`, `"见上"`, `"同上"`, `"略"`, `"通过"`, `"合格"` are rejected across reasons, conditions, locations, estimands, and disagreements). Positive decisions must cite the `evidence_ids` backing every required passing check (`uncited_check_evidence`). Citation contradiction detection (`is_contradicting_relation`) catches both exact labels and natural-language rewrites (`"does not support"`, `"fails to support"`, `"contrary to"`, `"无法支持"`, `"不足以支持"`, `"与主张矛盾"`, `"证伪"`, while respecting double negations like `"does not contradict"` / `"不矛盾"`).
-3. **Evidence-Kind Compatibility & Source Contradiction Detection (`incompatible_evidence_kind` & `contradictory_evidence_kind`)**: Every cited reference must match the `COMPATIBILITY` matrix for `claim_type × evidence_level`; if the snapshot text explicitly describes a weaker contradicting study design (e.g., registering an explicitly non-randomized observational cohort as `kind="intervention"`, or internal cross-validation as `kind="prediction_external"`), positive support is rejected with `contradictory_evidence_kind`.
-4. **Synthetic Evidence Isolation (`synthetic_empirical_support`)**: Any evidence with `kind="synthetic"` or `provenance="synthetic"` is blocked from supporting `empirical` or `formal` positive verdicts; synthetic positive scope is restricted to `description × recorded` and `computational × benchmark_measured`.
-5. **Language-Aware Unique Quote Anchoring & Claim-Linkage Verification (`unanchored_positive_evidence` & `unlinked_evidence_quote`)**: Every positive reference requires a unique literal `quote` of at least **12 non-whitespace units (weighted by lexical density: 2 units per CJK character so $\ge 6$ CJK characters $\equiv \ge 12$ ASCII characters)** and a concrete non-placeholder `location`, **and** the quote must share quantitative values, substantive domain terms, or checked-card locators with the claim (`unlinked_evidence_quote` blocks arbitrary unrelated substrings from the source file).
-6. **ANSI Terminal Log Normalization, $> 128\text{ KiB}$ 4-Role Windowing, Derived Lineage Propagation & Unread Acknowledgment (`text_content`, `excerpt_anchors` & `derived_from_evidence_ids`)**:
-   - `text_content()` automatically strips ANSI CSI/OSC color and cursor escape sequences (`\x1b[...m`) and benign terminal controls from `record-exec` logs while still rejecting PDF/ZIP/PNG/ELF headers and NUL-bearing binary streams.
-   - Review packets cap inline source text at **128 KiB** (an operational prompt-budget bound): when a $> 128\text{ KiB}$ UTF-8 text source has a unique registered `quote` (optionally paired with `excerpt_anchors`), the engine generates structured 4-role excerpt windows $\le 128\text{ KiB}$ (`<<<PARRHESIA_EXCERPT_WINDOW ...>>>` preserving `head_metadata`, `quote_primary`, `anchor_excerpt`, and `tail_summary` so late-file contradictions/failures are not hidden behind truncation; `excerpt_window.quote_anchored = true`), allowing positive verdicts once acknowledged in `unread_evidence_ids`; unquoted $> 128\text{ KiB}$ files and unread binary leaf sources remain blocked from positive support.
-   - `register_evidence` and CLI `record-exec --derived-from --derivation-step` track derived-artifact lineage (`derived_from_evidence_ids`), mechanically blocking `synthetic` ancestor laundering (`synthetic_empirical_support`), preserving `hash_verified_unread_binary_ancestors` audit trails for SHA-256-verified read-only binary upstreams, and blocking tampered ancestor artifacts on disk.
-7. **Complete Original-Claim Stances, 3-Finding Focus Budget & Non-Blocking Symmetry Audit (`incomplete_stances` & `symmetry_audit`)**: Reviewers must submit an explicit stance on every frozen claim even when reporting zero findings. Each reviewer role is capped at **0–3 findings** per pass to prioritize the highest-impact flaws (setting `review_status="needs_split"` when $>3$ substantive issues exist). Verification and exported reports also emit non-blocking advisory `symmetry_audit` flags across five anti-underclaim / false-abstention hooks (`possible_false_abstention`, `possible_unjustified_downgrade`, `unsupported_without_counterevidence`, `possible_boilerplate_overhedging`, `rejected_underclaim_finding_advisory`) without blocking calibrated exports.
-8. **Substantive Disposition Incorporation, Blind Freeze, Honest Isolation Attestation & Fork Multiplicity (`finding_not_incorporated`, `case_level_blind`, `isolation_attestation` & execution-fork gates)**: Incorporations require a unique `revised_text_quote` ($\ge 6$ CJK or $\ge 12$ ASCII characters) present in both `proposed_text` and `revised_text` and case-insensitively absent from `original.text`, **and** enforce substantive adoption: `revised_text` cannot keep `original.text` verbatim with a tacked-on sentence, cannot retain criticized terms that `proposed_text` removed, and must adopt the issue-linked replacement terms from `proposed_text` (and in `partial` mode, `revised_text_quote` itself must anchor those issue-linked terms rather than a filler clause); unincorporated recommendations must record `resolution="disagreement"`. `blind=true` is frozen at case creation, and reports record `reviewer_input_manifests` plus optional caller-supplied `isolation_attestation` (`history_inheritance`, `memory_access`, `host_surface`—honestly defaulting to `"UNKNOWN"` when omitted rather than hardcoded strings). Execution forks recorded via `record-exec` are tracked per `claim_id` / `run_group` and cross-checked against SQLite events (`selective_execution_omission`, `unadjusted_execution_multiplicity`, while permitting explicitly disclosed non-primary failed forks alongside an accountable primary run).
-9. **Computable `effect_records` Verification, Secret-Free Auto-Provenance & SQLite Event Hash Chain (`user_version=2`)**:
-   - `scaffold_claim(include_effect_records=True)` initializes structured `effect_records` separating `primary`/`benchmark` endpoints from `secondary`/`safety`/`exploratory`/`sensitivity` outcomes. Deterministic checks enforce CI-vs-$p$-value compatibility (`effect_pvalue_ci_mismatch`), GRIM/granularity integer feasibility (`effect_grim_inconsistent`), primary-only null-crossing blocking (`primary_effect_crosses_null`, allowing calibrated `supported` verdicts when secondary or safety endpoints cross null), record anchor verification (`unanchored_effect_record`), polarity/direction consistency (`effect_direction_mismatch`), and non-blocking underclaim advisories (`unsupported_despite_beneficial_primary_effect`), reporting per-record `effect_checks` on `verify`.
-   - `record-exec` adds `--input-file`, `--output-file`, and `--stdout-excerpt-chars` (default `400`, cap `2000`) alongside automatic git/lockfile SHA-256 capture and presence-only non-secret env markers; `PRAGMA user_version = 2` chains SQLite `events` with `prev_event_hash`/`event_hash` SHA-256 digests and surfaces `event_chain` / `event_chain_status` (`verified`, `legacy_unhashed`, `mixed_verified`, `tampered`) on `verify` and `get_case`.
-10. **Cross-Time Claim Graph (`claim_graph`), Executable Reversal Triggers & Measurable Calibration**:
-   - **Append-only longitudinal DAG**: `create_case` (`prior_case_ids`, `supersedes_case_id`, `case_relation`) and claim `prior_claim_links` (`replicates` / `refines` / `narrows` / `extends` / `supersedes` / `reverses` / `refutes`) connect follow-up cases without mutating frozen prior records or exports; `claim_graph` (and `parrhesia://claim-graph`) traces per-claim verdict/level trajectories and deterministic `active_standing`.
-   - **5 executable trigger kinds (`reversal_triggers` & `evaluate_triggers`)**: Replaces vague "more research needed" text with verifiable predicates across `effect_metric`, `check_status`, `evidence_status`, `execution_outcome`, and `replication_verdict`. Adjudication blocks `self_triggering_reversal_condition`, `contradictory_claim_lineage_transition`, and `untriggered_reversal_link`; read-only `evaluate_triggers` (and `parrhesia://cases/{case_id}/triggers`) evaluates triggers against `against_case_id`, inline `observations`, or live workspace state as `fired`, `unfired`, or `pending_data`.
-   - **Empirical post-hoc calibration (`forecast_probability`, `record_calibration_outcome` & `calibration_report`)**: Adjudication decisions accept optional `[0.0, 1.0]` `forecast_probability` values; after adjudication or export, append-only `record_calibration_outcome` logs replication/interval observations without rewriting `input_digest`, `adjudication_digest`, or event hash chains; and `calibration_report` (and `parrhesia://calibration`) computes Brier/log proper scores, 5 reliability bins (`ECE`/`MCE`), confidence strata, known-truth CI coverage separately from replication point containment and assumption-qualified `z_difference`, and `trigger_precision`.
+| **Evidence binding and placeholders** | `pass` without evidence IDs; reasons such as `"ok"`, `"通过"`, `"见上"`, or `"TBD"` | Passing checks require nonempty `evidence_ids` and substantive reasons; positive decisions must cite evidence supporting required checks (`uncited_check_evidence`) |
+| **Evidence kinds and synthetic isolation** | Labeling observational data as `intervention`; using synthetic data for real empirical conclusions | Enforce `kind` compatibility with claim type/level; positive synthetic support is limited to `description × recorded` and `computational × benchmark_measured` |
+| **Unique source anchors and claim linkage** | Fabricated quotes or unrelated headers/copyright text | Positive references require a uniquely matching `quote` of at least 6 CJK characters or 12 visible ASCII characters, sharing numbers, substantive terms, or provenance-card locators with the claim (`unlinked_evidence_quote`) |
+| **Four-role windows and lineage** | ANSI logs rejected; contradictions at the end of files larger than 128 KiB hidden by truncation; derived tables laundering synthetic ancestors | Strip ANSI controls; unique quotes produce budgeted windows preserving head metadata, primary quote, anchors, and tail summary; `derived_from_evidence_ids` tracks ancestor hashes and synthetic provenance |
+| **Substantive incorporation and symmetry audit** | Marking `incorporated` while retaining the criticized text; unjustified downgrades without counterevidence | `revised_text_quote` must occur uniquely in both proposed and revised text, be absent from the original, and substantively replace criticized terms; otherwise record `disagreement`. Non-blocking `symmetry_audit` flags excessive hedging and unsupported abstention |
 
 ---
 
-## Quick Start & Common Commands
+### Pillar 4: Execution provenance, longitudinal claim graphs, and post-hoc calibration
+
+1. **Command provenance without recording secret environment values, and event integrity (`record-exec` / `events`)**
+   - `python -m parrhesia record-exec` captures the command, Git commit/dirty state, lockfile hashes, input/output SHA-256 through `--input-file` / `--output-file`, and environment presence markers rather than secret values.
+   - **Failure receipts remain durable**: timeout (wrapper `124`), start failure (wrapper `127`), and nonzero child exits preserve logs, snapshots, and events without overwriting history. Claim/run-group gates detect hidden failed forks (`selective_execution_omission`) and unadjusted selection across forks (`unadjusted_execution_multiplicity`).
+   - **SQLite event hash chain (`PRAGMA user_version = 2`)**: events carry `prev_event_hash` and `event_hash`; `verify` and `get_case` expose `event_chain_status`: `verified`, `legacy_unhashed`, `mixed_verified`, or `tampered`.
+2. **Longitudinal claim graph (`claim_graph`) and executable reversal triggers (`reversal_triggers`)**
+   - An append-only DAG connects studies through `prior_case_ids`, `supersedes_case_id`, and `prior_claim_links` (`replicates`, `refines`, `narrows`, `extends`, `supersedes`, `reverses`, `refutes`) without modifying frozen prior cases. Draft, frozen, or unadjudicated successor relations remain `pending`; `active_standing` changes only after a valid successor adjudication.
+   - Five predicate kinds—`effect_metric`, `check_status`, `evidence_status`, `execution_outcome`, `replication_verdict`—make reversal conditions executable. Adjudication rejects `self_triggering_reversal_condition`; follow-up `evaluate_triggers` returns `fired`, `unfired`, or `pending_data`.
+3. **Source-bound post-hoc probability calibration (`record_calibration_outcome` / `calibration_report`)**
+   - Decisions may include explicit `[0.0, 1.0]` `forecast_probability`. Append-only outcomes must bind verified `external_evidence` or a valid adjudicated `follow_up_case`; missing or invalid sources remain pending and do not enter resolved scores.
+   - `calibration_report` separates explicit-forecast proper scores (`explicit_brier_score`, `explicit_log_score`, five reliability bins, `ECE`/`MCE`) from qualitative-confidence `heuristic_scores`, and separates `known_truth` interval coverage from `replication_point_containment_rate` and assumption-qualified `z_difference`.
+
+---
+
+## Five-minute quick start and common commands
+
+### 1. Run the offline end-to-end demo
+
+No network or model configuration is needed. A built-in synthetic case runs registration → freezing → blind review packets → dual-review submission → adjudication → anchor verification → atomic export. The output directory must not already exist:
 
 ```powershell
-# 1. Run the offline end-to-end synthetic demonstration (output directory must not exist yet)
 python -m parrhesia demo --output .\artifacts\my-demo
+```
 
-# 2. Scaffold an honest all-unknown v2 claim template (optionally with include_effect_records) and inspect check_ceilings
+The directory contains an interactive read-only `review.html`, a Markdown adjudication report, `workflow-transcript.json`, and `.parrhesia/state.sqlite3`.
+
+### 2. Core CLI reference
+
+```powershell
+# Inspect the runtime version and full JSON contract
+python -m parrhesia contract
+
+# Scaffold an all-unknown/not_run v2 claim (optional include_effect_records and check_ceilings preview)
 python -m parrhesia call scaffold_claim --workspace C:\YourWorkspace --input docs/examples/claim-v2-unknown.json
 
-# 3. Execute a command, auto-capture git/lockfile/input-output hashes & non-secret env markers into a unique log, and emit a claim-scoped execution card
+# Execute an analysis, capture Git/lockfile/input-output hashes and non-secret environment markers, and create an execution card
 python -m parrhesia record-exec --workspace C:\YourWorkspace --case-id <case_id> --claim-id C1 --card-id exec-1 --input-file data/clean.csv --output-file results/metrics.json -- python your_analysis.py
 
-# 4. Verify single-source policy generation, strict zero-leakage Stage 0 evaluation suites (split columns + de-leaked prompt export), and all 184 unit tests
+# Start the local stdio MCP server for a host client
+python -m parrhesia serve --workspace C:\YourWorkspace
+```
+
+<details>
+<summary><b>🔧 Developer commands: policy generation, Stage 0 evaluations, and packaging</b></summary>
+
+```powershell
+# 1. Check or regenerate derived policy files (AGENTS.md, host templates, SKILL.md, ChatGPT templates)
 python scripts/generate-policy.py --check
+python scripts/generate-policy.py
+
+# 2. Static leakage audit and Stage 0 mechanical evaluations
 python scripts/check-eval-leakage.py --strict
 python scripts/run-stage0-eval.py --mode mechanical --report-out docs/verification/stage0-evaluation.md
 python scripts/run-stage0-eval.py --mode counterfactual
@@ -248,26 +296,46 @@ python scripts/run-stage0-eval.py --mode metamorphic
 python scripts/run-stage0-eval.py --mode p1-effects
 python scripts/run-stage0-eval.py --mode p2-longitudinal
 python scripts/run-stage0-eval.py --mode prompt-export --output-dir artifacts/stage0-prompts
+
+# 3. Automated unit tests
 python -m unittest discover -s tests -v
 
-# 5. Build the deterministic Agent Plugins 1.0.0 release archive
+# 4. Deterministic distribution ZIP, checking manifest/runtime version consistency
 python scripts/build-release.py --output dist/parrhesia-0.3.0.zip
 ```
+</details>
 
 ---
 
-## Self-Applied Evidence Boundary (Practicing What We Preach)
+## Our own evidence boundaries (practicing what we preach)
 
-| Dimension | Current Classification & Evidence | Supported Claim & Honest Boundary |
+Parrhesia reports its own `0.3.0` maturity using the same `engineering` and `computational` evidence levels:
+
+| Evaluation area | Current evidence and judgment | Supported scope and limits |
 | :--- | :--- | :--- |
-| **Local State Machine, Mechanical & Computable Gates, Longitudinal Triggers & Calibration**<br>(`engineering × test_passed`, **supported**) | 184 automated tests (182 passed, 2 skipped: host symlink permissions and optional `jsonschema`; covering `tests/test_adapters.py`, `tests/test_effects.py`, `tests/test_longitudinal_calibration.py`, `tests/test_record_exec_provenance.py`, `tests/test_server.py`, and `tests/test_packaging.py`; earlier baseline in [release-0.2.0.md](docs/verification/release-0.2.0.md)); `check-eval-leakage.py --strict` (`overlap=0`) and all five Stage 0 split-column suites pass: `dev_phrase_consistency` (`40/40` L2 across 10 families, `9/9` `L1-Explore`, 60 Card A, 60 Card B, 136 Card C, `6/6` paired twins, `4/4` lineage/window specs), `heldout_generalization` (`24/24` realistic controls `FRR=0.0`, `6/12` adversarial paraphrases caught mechanically while `HADV-07..12` stay explicitly `uncaught_without_llm_or_p1`), `metamorphic_invariance` (`12/12`), separate `p1_effect_records` (`12/12`, `0` FRR on `PEFF-01`, `11/11` computable traps incl. `6/6` structured `HADV-07..12` counterparts, `12/12` `event_chain_status=verified`), and separate `p2_longitudinal_calibration` (`8/8`: `4/4` positive controls + `4/4` longitudinal/self-triggering/lineage traps, `8/8` `event_chain_status=verified`) ([stage0-evaluation.md](docs/verification/stage0-evaluation.md)) | Verifies SQLite ACID transactions (including `PRAGMA user_version = 2` SHA-256 `events` hash chain), 22 MCP tools (18 typed per-action tools, `parrhesia_validate` rollback preflight, 4 resources / 7 templates, prompts, and `repair_hint`), computable `effect_records` checks, append-only `claim_graph` DAG lineage & `active_standing`, 5 executable `reversal_triggers` kinds & `evaluate_triggers`, post-export `record_calibration_outcome` & `calibration_report` metrics, secret-free `record-exec` provenance, anti-rubber-stamping gates (see [gate-bypass-hardening-20261019.md](docs/verification/gate-bypass-hardening-20261019.md)), `LEGACY_UNGATED` recovery, and standalone ZIP execution; `p1_effect_records` and `p2_longitudinal_calibration` require structured records and do not replace prose-level dual review |
-| **Multi-Host Sync, Engineering Adapters & Historical Handshake**<br>(`engineering × test_passed`, **supported**; `0.2.0` live orchestration pending) | Antigravity adapter (`.antigravity-plugin/plugin.json`, `install-antigravity.py`/`.ps1` `--check`/`--uninstall`, frontmatter-free `< 24,000 B` rules, dual skills, read-only `SessionStart` hook, isolated `--scope user`), Grok `0.2.0` adapter (dual skills, `compact|full`, `--check`/`--uninstall`, `grok 1.0.48` manifest validation & isolated project `.mcp.json` discovery), `install-codex.py`, marketplace schema checks, and [ChatGPT kit verification](docs/verification/chatgpt-adapter.md) pass; [Grok 1.0.48 native handshake](docs/verification/grok-native.json) is a historical `0.1.0` record | Proves package structure, manifest schemas, rule size limits, shell hook safety, file integrity checks, and stdio MCP handshakes; does not misrepresent local adapter tests or `0.1.0` logs as live Antigravity / Grok end-to-end multi-agent review validation |
-| **Net Behavioral Improvement on Live LLMs**<br>(`computational × unassessed`, **insufficient_evidence** / `not_run`) | [Evaluation plan](docs/evaluation-plan.md) frozen and 4-arm de-leaked prompt packets (`A_baseline`, `B_compact`, `B_full`, `E_full_l2_workflow`, `279` total packets across base L2, `L1-Explore`, Card A, Card B, Card C symmetry, paired sensitivity, held-out controls, held-out adversarial paraphrases, metamorphic invariance, `p1_effect_records`, and `p2_longitudinal_calibration`, verified by `--prompt-export` leakage audit + `scoring_rubric_metrics`) exported; external paid LLM status is `not_run` | Empirical reductions in overclaim, underclaim, and hollow-neutrality rates across live models have **not yet been measured** on a held-out blind benchmark |
-| **Deterministic Cross-Reference Gates vs. Empirical Scientific Truth**<br>(Intrinsic Architectural Boundary) | Engine verifies SHA-256 hashes, claim-linked unique quotes, progressive design/stat checks, evidenced `pass` records, and explicit `kind` contradictions | **Deterministic cross-reference gates are not proof of empirical truth**: they block lazy and manipulative form-filling (unbacked `pass`, `"ok"` reasons, `N/A` bypasses, unlinked quotes, explicit design-kind contradictions), but cannot independently detect fabricated raw files without external execution provenance (`record-exec` / `reproducible-science`) or replace domain peer review |
+| **Windows Codex desktop integration and native file-symlink rejection**<br>(`engineering × host_accepted`, **supported** within scope) | On 2026-11-14, Windows 11 + Python 3.13.9 + Codex desktop loaded the frozen `0.3.0` package ([acceptance summary](docs/verification/release-0.3.0.md)). Harm-proposition review/adjudication/export, pending successor relations, calibration source verification/invalidation, CLI timeout/start-failure/nonzero-exit receipts read back by the host, and native file-symlink rejection after enabling Developer Mode were exercised. Original symlink test: 1 passed, 0 skipped; rejected registration changed neither evidence nor events | The local MCP workflow, state machine, event chain, and tested path boundary operated according to contract in this Windows Codex session with fixed synthetic material. **Limits**: reviewer content was a same-context fixed fixture, not independent scientific model review; this does not establish acceptance on other hosts, coverage of all reparse point types or concurrency races, or `user_impact` |
+| **Local state machine, gates, computable effects, longitudinal calibration, and host adapters**<br>(`engineering × test_passed`, **supported**) | `0.3.0` separates proposition support from benefit direction, requires explicit `wald`/`log_wald` and `unweighted_binary` applicability, preserves pending draft successors, binds outcome sources, separates explicit forecasts from heuristics and truth coverage from replication containment, and retains failure receipts ([migration guide](docs/migration-0.3.md)). The pre-repair historical snapshot contains 184 unit tests and five Stage 0 evaluation columns ([Stage 0](docs/verification/stage0-evaluation.md), [0.2.0 verification](docs/verification/release-0.2.0.md)) | Supports the tested SQLite ACID transactions, `events` SHA-256 chain, 22 MCP tools including `parrhesia_validate` and `repair_hint`, anti-rubber-stamping gates ([hardening verification](docs/verification/gate-bypass-hardening-20261019.md)), and adapter structure/contracts for Codex, Claude, Grok, Antigravity, and ChatGPT. Historical totals are not post-repair rerun counts |
+| **Net behavioral improvement on live LLMs**<br>(`computational × unassessed`, **insufficient_evidence** / `not_run`) | The [evaluation plan](docs/evaluation-plan.md) is frozen and leakage-audited four-arm blind prompt packets were exported (`A_baseline`, `B_compact`, `B_full`, `E_full_l2_workflow`; `279` packets). External paid LLM blind evaluation remains `not_run` | Reductions in overclaim, excessive disclaimers, and hollow neutrality have **not been measured on a real blinded held-out evaluation**. The plan estimates 120–160 independent cases to detect an absolute improvement of 15–20 percentage points |
+| **Deterministic cross-checks versus scientific truth**<br>*(architectural boundary)* | The engine checks source SHA-256, unique claim-linked quotes, progressively required design checks, evidence-bound `pass`, explicit design contradictions, and `input_manifest` | Deterministic checks are **not proof of scientific truth**. They can block empty form-filling, unsupported `pass`, adjacent-level misuse, and unbound outcomes, but cannot independently identify carefully fabricated source files without a reproducible execution chain or replace domain peer review |
 
 ---
 
-## License & Repository
+## Documentation
+
+- **Core policy and contracts**
+  - [Single policy source (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [Product design (`docs/product-design.md`)](docs/product-design.md) · [Runtime contract (`docs/contract.md`)](docs/contract.md)
+  - [0.3.0 migration (`docs/migration-0.3.md`)](docs/migration-0.3.md) · [0.2.0 migration (`docs/migration-0.2.md`)](docs/migration-0.2.md) · [Evaluation plan (`docs/evaluation-plan.md`)](docs/evaluation-plan.md)
+- **Host integrations and skills**
+  - [L2 review workflow (`skills/parrhesia-review/SKILL.md`)](skills/parrhesia-review/SKILL.md) · [L2 scientific reference (`skills/parrhesia-l2-reference/SKILL.md`)](skills/parrhesia-l2-reference/SKILL.md)
+  - [Antigravity](docs/antigravity-integration.md) · [Grok](docs/grok-integration.md) · [ChatGPT](docs/chatgpt-integration.md)
+  - [Repository `AGENTS.md`](AGENTS.md) · [Full policy template](templates/AGENTS.parrhesia.md) · [Codex compact template](templates/AGENTS.parrhesia.codex.md) · [ChatGPT template](templates/AGENTS.parrhesia.chatgpt.md)
+- **Verification and audits**
+  - [0.3.0 desktop acceptance (`docs/verification/release-0.3.0.md`)](docs/verification/release-0.3.0.md) · [0.2.0 verification (`docs/verification/release-0.2.0.md`)](docs/verification/release-0.2.0.md)
+  - [Stage 0](docs/verification/stage0-evaluation.md) · [Anti-stall gates](docs/verification/anti-stall-gates.md) · [Gate-bypass hardening](docs/verification/gate-bypass-hardening-20261019.md)
+
+---
+
+## License and repository
 
 - **License**: [Apache-2.0 License](LICENSE)
 - **Repository**: [https://github.com/HERRY423/Parrhesia](https://github.com/HERRY423/Parrhesia)
