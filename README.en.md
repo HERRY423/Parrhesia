@@ -1,12 +1,14 @@
 # Parrhesia
 
+**Latest acceptance (2026-11-14):** The Windows Codex desktop host loaded 0.3.0. Harm-proposition review/export, pending successor standing, calibration source binding, CLI failure receipts read back by the host, and Windows native file-symlink rejection reached **engineering × host_accepted** within fixed synthetic scenarios. The original symlink test passed with zero skips; earlier permission failures remain preserved. This does not establish independent scientific review, acceptance on other hosts, user_impact, or coverage of all reparse points/races. [Scope, artifact identity and limitations](docs/verification/release-0.3.0.md).
+
 Local repair status (2026-11-14): numerical checks now require explicit applicability, draft replacement edges remain pending, calibration separates verified sources, explicit forecasts and known-truth coverage from unresolved reports, heuristic mappings and replication containment. Timeout/start failures retain durable receipts. The 184-test and existing Stage 0 figures below are the pre-repair historical snapshot; see the [0.3 migration guide](docs/migration-0.3.md); detailed test and acceptance records remain local.
 
 **Proportion claim strength to evidence. End hollow neutrality through explicit adjudication.**
 
 **Language / 语言**：**[简体中文](README.md)** · English
 
-Parrhesia is a local, zero-dependency evidence-calibration and dual-review adjudication plugin conforming to the [Agent Plugins 1.0.0](https://agent-plugins.org/) specification, paired with a single-source-of-truth cross-platform `AGENTS.md` policy system. The current local build is **`0.3.0`** (new cases enforce `schema_version=2` and mechanical gates `gate_version=1`, while preserving legacy records; see the [migration guide](docs/migration-0.3.md)). This local build does not imply a remote release.
+Parrhesia is a local, zero-dependency evidence-calibration and dual-review adjudication plugin conforming to the [Agent Plugins 1.0.0](https://agent-plugins.org/) specification, paired with a single-source-of-truth cross-platform `AGENTS.md` policy system. The current version is **`0.3.0`** (new cases enforce `schema_version=2` and mechanical gates `gate_version=1`, while preserving legacy records; see the [migration guide](docs/migration-0.3.md)). Source and frozen acceptance artifacts have distinct identities; this documentation update does not rebuild the package or create a GitHub Release.
 
 See [Changelog](CHANGELOG.md) · [0.1.0 → 0.2.0 Migration Guide](docs/migration-0.2.md) · [0.2.0 Release Verification](docs/verification/release-0.2.0.md) · [Stage 0 Evaluation Report](docs/verification/stage0-evaluation.md)
 

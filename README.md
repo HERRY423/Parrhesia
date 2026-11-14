@@ -1,12 +1,14 @@
 # Parrhesia
 
+**最新验收（2026-11-14）**：Windows Codex 桌面实际加载 0.3.0；伤害方向主张审查/导出、待裁定后继状态、校准来源绑定、CLI 失败记录→宿主读回，以及 Windows 原生文件符号链接拒绝，均在固定合成场景达到 **engineering × host_accepted**。符号链接原测试 1 通过、0 跳过；旧权限失败和日志保留。不代表独立科学审查、其他宿主验收或 user_impact，也不覆盖全部 reparse point/竞态。[范围、构建身份与限制](docs/verification/release-0.3.0.md)。
+
 本地修复状态（2026-11-14）：数值检查现在要求明确适用前提，草稿替代关系保持 pending，校准区分已核对来源/未知结局、显式概率/启发式映射、真值覆盖/复现一致性；超时和启动失败保留持久记录。下列 184 项与既有 Stage 0 数字属于修复前历史快照；修复兼容性见 [0.3 升级说明](docs/migration-0.3.md)；详细测试与验收记录保留在本地。
 
 **让证据决定表达强度，让裁决结束空泛中立。**
 
 **语言 / Language**：简体中文 · **[English](README.en.md)**
 
-Parrhesia 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的本地证据校准与双审裁决插件，配套单源生成的跨平台规则体系 `AGENTS.md`。当前本地构建为 **`0.3.0`**（新案例采用 `schema_version=2` 与反空转机械门控 `gate_version=1`，保留历史记录兼容恢复；[升级说明](docs/migration-0.3.md)）。本地版本不表示远端已发布。
+Parrhesia 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的本地证据校准与双审裁决插件，配套单源生成的跨平台规则体系 `AGENTS.md`。当前版本为 **`0.3.0`**（新案例采用 `schema_version=2` 与反空转机械门控 `gate_version=1`，保留历史记录兼容恢复；[升级说明](docs/migration-0.3.md)）。源码版本与冻结验收包分别标识；文档同步不代表重新打包或创建 GitHub Release。
 
 查看 [版本变更记录](CHANGELOG.md) · [从 0.1.0 升级指南](docs/migration-0.2.md) · [0.2.0 交付核验](docs/verification/release-0.2.0.md) · [Stage 0 对照评估报告](docs/verification/stage0-evaluation.md)
 
