@@ -20,10 +20,12 @@ When one model drafts, criticizes, identifies contributions, and decides within 
 
 ### Calibration at a glance
 
-- ❌ **Overclaim**: “Single-cell co-expression and significant regression ($p=0.002$) prove that transcription factor X activates pathway Y and causes resistance.”
-- ❌ **Excessive disclaimer**: “Although the model achieved AUROC 0.84 (95% CI 0.77–0.90) in an independent external cohort ($N=120$), the limited sample, possible unknown biases, and absence of multicenter phase III randomized trials prevent any firm conclusion; for reference only.”
+The numbers below illustrate wording; they are not clinical results from this project.
+
+- ❌ **Overclaim**: “Single-cell co-expression and significant regression (p=0.002) prove that transcription factor X activates pathway Y and causes resistance.”
+- ❌ **Excessive disclaimer**: “Although the model achieved AUROC 0.84 (95% CI 0.77–0.90) in an independent external cohort (N=120), the limited sample, possible unknown biases, and absence of multicenter phase III randomized trials prevent any firm conclusion; for reference only.”
 - ✅ **Calibrated wording**:
-  > “In an independent external validation cohort ($N=120$), the model showed robust external discrimination for one-year recurrence (`prediction × externally_validated`, **supported**; AUROC 0.84, 95% CI 0.77–0.90), supporting its candidacy for risk stratification in populations from the same distribution. Net clinical decision benefit (`utility`) remains to be evaluated prospectively. If subsequent cross-center calibration slopes fall outside $[0.8, 1.2]$, applicability will be narrowed to populations matching the original center.”
+  > “In an independent external validation cohort (N=120), the model showed robust external discrimination for one-year recurrence (`prediction × externally_validated`, **supported**; AUROC 0.84, 95% CI 0.77–0.90), supporting its candidacy for risk stratification in populations from the same distribution. Net clinical decision benefit (`utility`) remains to be evaluated prospectively. If subsequent cross-center calibration slopes fall outside [0.8, 1.2], applicability will be narrowed to populations matching the original center.”
 
 **Three non-negotiable boundaries** (see the [single policy source](policy/parrhesia-policy.md#唯一优先级)):
 
@@ -39,7 +41,7 @@ Parrhesia keeps routine tasks lightweight while applying checks to consequential
 
 | Tier | Typical tasks | Interaction and output | Database and dual review? |
 | :--- | :--- | :--- | :--- |
-| **`[L0]`** | Translation, formatting, a single verifiable fact, local code edits, pure numerical calculations | **Give the result directly**, without extra structure | No |
+| **`[L0]`** | Translation, formatting, a single verifiable fact, local code edits, pure numerical calculations | **Give the result directly**, with `[L0]` on the first line and no extra structure | No |
 | **`[L1]`**<br>*(default)* | Explanations, comparisons, evidence judgments, interim conclusions | Natural prose covering **① verdict and `claim_type × evidence_level + scope` · ② traceable evidence and strongest rival explanation · ③ observable reversal conditions · ④ next action · ⑤ relevant failed/unknown checks** | No; lightweight internal checks |
 | **`[L1-Explore]`** | Brainstorming, hypotheses, mechanism reasoning, experimental/statistical design | **2–3 exploratory hypothesis cards**, each containing **① strongest rival · ② discriminating experiment · ③ cost · ④ stopping rule · ⑤ falsification condition** | No; supports exploration |
 | **`[L2]`** | Figure captions, abstracts, manuscripts, formal reports, submission materials, core-claim reviews, responses to challenges | Review **3–5 core claims at a time**, not the whole document: register → freeze packets → overclaim/underclaim reviews in two clean contexts → adjudicate → verify provenance and export atomically | **Yes**; SQLite persistence and mechanical gates |
@@ -175,11 +177,11 @@ A single ladder from description to association, prediction, mechanism, and caus
 | **Prediction** `prediction` | `apparent` · `internally_validated` · `externally_validated` · `prospectively_evaluated` | State target, time, and population; external discrimination is not clinical utility or causal mechanism |
 | **Causal effect** `causal_effect` | `unidentified` · `identified_under_assumptions` · `sensitivity_supported` | Causal language applies only to the specified `estimand`, design, and identification assumptions |
 | **Mechanism** `mechanism` | `compatible` · `component_tested` · `causal_chain_tested` | Co-expression/enrichment provides compatible clues; a full chain requires examining alternative pathways |
-| **Necessity** `necessity` | `bounded_test` · `counterfactual_supported` | Whether $Y$ can still occur after removing $X$ in the specified context; **not sufficiency** |
-| **Sufficiency** `sufficiency` | `bounded_test` · `counterfactual_supported` | Whether introducing $X$ produces $Y$ in the specified context; **not necessity** |
+| **Necessity** `necessity` | `bounded_test` · `counterfactual_supported` | Whether Y can still occur after removing X in the specified context; **not sufficiency** |
+| **Sufficiency** `sufficiency` | `bounded_test` · `counterfactual_supported` | Whether introducing X produces Y in the specified context; **not necessity** |
 | **Synthesis** `synthesis` | `mapped` · `critically_appraised` · `synthesized_with_uncertainty` | Inherits study bias and dependence; pooling does not create causal identification |
 | **Theory** `theory` | `conjectured` · `proved_under_assumptions` · `independently_checked` | Requires `claim_basis="formal"`; numerical examples do not replace proofs |
-| **Qualitative** `qualitative` | `situated_description` · `interpretation_audited` · `triangulated` | Preserve context and negative cases; do not impose population frequencies or $p$-values |
+| **Qualitative** `qualitative` | `situated_description` · `interpretation_audited` · `triangulated` | Preserve context and negative cases; do not impose population frequencies or p-values |
 | **Computational performance** `computational` | `benchmark_measured` · `reproduced` · `externally_evaluated` | Report datasets, budget-matched baselines, and seeds; leaderboard results are not deployment benefit |
 | **Engineering** `engineering` | `test_passed` · `host_accepted` · `user_impact` | Unit tests do not replace real host acceptance; handshakes do not establish user benefit |
 
@@ -195,8 +197,8 @@ In an `L2` ledger, `scaffold_claim` generates an honest all-`unknown` / `not_run
 - **9 design packages (`design_packages`)**: `observational`, `quasi_experimental`, `randomized`, `prediction`, `ml`, `mechanism`, `evidence_synthesis`, `theory`, and `qualitative`. Core checks cannot be bypassed with `not_applicable`; adjacent within-type levels have progressively stronger requirements.
 - **8 statistical-report dimensions (`statistical_report`) and 4 provenance-card kinds (`provenance_cards`)**: sample size/independent units, estimand/scale, effects/uncertainty, assumptions, missingness/exclusions, multiplicity, direct baseline comparisons, and robustness/limits; attach `citation`, `number`, `execution`, and `search` cards.
 - **Computable effects (`effect_records`)** separate `primary` / `benchmark` from `secondary` / `safety` / `exploratory` / `sensitivity` endpoints and check only declared applicable conditions:
-  - **Interval–$p$ consistency**: records declaring matching two-sided unadjusted `inference_method="wald"` or `"log_wald"` are checked for mathematical compatibility of estimate, interval, and $p$-value. Other or undeclared methods remain `unassessed`.
-  - **GRIM and integer-denominator granularity**: proportion/accuracy records declaring `count_basis="unweighted_binary"` are checked for integer feasibility of sample size $n$, event counts, and decimal precision.
+  - **Interval–p consistency**: records declaring matching two-sided unadjusted `inference_method="wald"` or `"log_wald"` are checked for mathematical compatibility of estimate, interval, and p-value. Other or undeclared methods remain `unassessed`.
+  - **GRIM and integer-denominator granularity**: proportion/accuracy records declaring `count_basis="unweighted_binary"` are checked for integer feasibility of sample size n, event counts, and decimal precision.
   - **Primary null-crossing and secondary separation**: directional `primary` / `benchmark` claims whose intervals cross the null are blocked from positive verdicts (`primary_effect_crosses_null`); supported primary benefit can coexist with nonsignificant secondary or safety endpoints.
 
 ---
@@ -284,17 +286,8 @@ python -m parrhesia serve --workspace C:\YourWorkspace
 python scripts/generate-policy.py --check
 python scripts/generate-policy.py
 
-# 2. Static leakage audit and Stage 0 mechanical evaluations
-python scripts/check-eval-leakage.py --strict
+# 2. Stage 0 modes currently supported by the published repository
 python scripts/run-stage0-eval.py --mode mechanical --report-out docs/verification/stage0-evaluation.md
-python scripts/run-stage0-eval.py --mode counterfactual
-python scripts/run-stage0-eval.py --mode fork-multiplicity
-python scripts/run-stage0-eval.py --mode symmetry
-python scripts/run-stage0-eval.py --mode lineage-window
-python scripts/run-stage0-eval.py --mode heldout
-python scripts/run-stage0-eval.py --mode metamorphic
-python scripts/run-stage0-eval.py --mode p1-effects
-python scripts/run-stage0-eval.py --mode p2-longitudinal
 python scripts/run-stage0-eval.py --mode prompt-export --output-dir artifacts/stage0-prompts
 
 # 3. Automated unit tests
@@ -304,6 +297,8 @@ python -m unittest discover -s tests -v
 python scripts/build-release.py --output dist/parrhesia-0.3.0.zip
 ```
 </details>
+
+The published Stage 0 script currently supports only `mechanical` and `prompt-export`. Local extended evaluation scripts, test changes, and raw evidence were not published with these READMEs; these commands do not reproduce every local acceptance check.
 
 ---
 
@@ -319,6 +314,8 @@ Parrhesia reports its own `0.3.0` maturity using the same `engineering` and `com
 | **Deterministic cross-checks versus scientific truth**<br>*(architectural boundary)* | The engine checks source SHA-256, unique claim-linked quotes, progressively required design checks, evidence-bound `pass`, explicit design contradictions, and `input_manifest` | Deterministic checks are **not proof of scientific truth**. They can block empty form-filling, unsupported `pass`, adjacent-level misuse, and unbound outcomes, but cannot independently identify carefully fabricated source files without a reproducible execution chain or replace domain peer review |
 
 ---
+
+Additional acceptance scope: failure receipts cover **installed CLI execution → native host readback**, not arbitrary command execution through MCP. File-symlink acceptance does not cover directory junctions or concurrent replacement races; ordinary-file registration passed as a positive control. Raw tool responses, tests, databases, and earlier failure/skip records remain local. The public acceptance summary is not a complete reproducibility bundle.
 
 ## Documentation
 

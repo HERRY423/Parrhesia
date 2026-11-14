@@ -4,7 +4,7 @@
 
 **语言 / Language**：简体中文 · **[English](README.en.md)**
 
-**Parrhesia** 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的**本地证据校准与独立双审裁决插件**，配套单源生成的跨平台规则体系 `AGENTS.md`。它通过**认知分工解耦**与**确定性本地状态机（零第三方依赖，仅需 Python 3.11+ 标准库）**，解决大模型在科研分析、工程评测与技术决策中常见的“越级夸大、免责通胀、和稀泥”三大顽疾。
+**Parrhesia** 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的**本地证据校准与双审裁决插件**，配套单源生成的跨平台规则体系 `AGENTS.md`。它通过**认知分工解耦**与**确定性本地状态机（零第三方依赖，仅需 Python 3.11+ 标准库）**，用于约束大模型在科研分析、工程评测与技术决策中的“越级夸大、免责通胀、和稀泥”。独立审查需要宿主提供隔离上下文；对真实模型行为的净改善尚未测量，详见下方证据边界。
 
 ---
 
@@ -20,10 +20,12 @@
 
 ### 一眼看懂校准前后的区别
 
-- ❌ **越级夸大反例**：“单细胞共表达与回归显著（$p=0.002$）证明转录因子 X 激活通路 Y 并导致耐药。”
-- ❌ **过度免责反例**：“尽管独立外部队列（$N=120$）中模型区分度达 AUROC 0.84（95% CI 0.77–0.90），但鉴于样本量有限、潜在未知偏倚及缺乏多中心三期随机试验，目前无法得出确定结论，仅供参考。”
+以下数字仅为写法示例，不是本项目的临床结果。
+
+- ❌ **越级夸大反例**：“单细胞共表达与回归显著（p=0.002）证明转录因子 X 激活通路 Y 并导致耐药。”
+- ❌ **过度免责反例**：“尽管独立外部队列（N=120）中模型区分度达 AUROC 0.84（95% CI 0.77–0.90），但鉴于样本量有限、潜在未知偏倚及缺乏多中心三期随机试验，目前无法得出确定结论，仅供参考。”
 - ✅ **Parrhesia 校准写法**：
-  > “在独立外部验证队列（$N=120$）中，该模型对 1 年复发表现出稳健的外部区分度（`prediction × externally_validated`，**支持**；AUROC 0.84，95% CI 0.77–0.90），支持其作为同分布人群风险分层的候选工具；临床决策净获益（`utility`）尚待前瞻性干预评估。若后续跨中心队列校准斜率偏离 $[0.8, 1.2]$，则将适用范围收窄至原中心同分布人群。”
+  > “在独立外部验证队列（N=120）中，该模型对 1 年复发表现出稳健的外部区分度（`prediction × externally_validated`，**支持**；AUROC 0.84，95% CI 0.77–0.90），支持其作为同分布人群风险分层的候选工具；临床决策净获益（`utility`）尚待前瞻性干预评估。若后续跨中心队列校准斜率偏离 [0.8, 1.2]，则将适用范围收窄至原中心同分布人群。”
 
 **三条不可逾越的底线**（详见 [唯一规则源](policy/parrhesia-policy.md#唯一优先级)）：
 1. **权限与取舍顺序**：平台系统指令 > 平台开发者指令 > 用户消息；在此边界内，**数据保密与花费上限 > 证据真实 > 强度匹配 > 完整表达已支持的贡献 > 效率**。
@@ -38,7 +40,7 @@ Parrhesia **不为简单任务制造流程负担，也不在关键结论上放�
 
 | 档位标签 | 适用场景 | 交互体验与输出要求 | 是否动用数据库与双审？ |
 | :--- | :--- | :--- | :--- |
-| **`[L0]`** | 翻译、排版、单一可核对事实、局部代码修改、纯数值计算 | **直接给结果**，零额外结构与标签负担 | 否 |
+| **`[L0]`** | 翻译、排版、单一可核对事实、局部代码修改、纯数值计算 | **直接给结果**，首行标明 `[L0]`，不加额外结构 | 否 |
 | **`[L1]`**<br>*(默认)* | 日常解释、方案比较、证据判断、阶段性小结 | 自然组织内容，包含五要素：**① 开头给判定与 `claim_type × evidence_level + scope` · ② 可核对依据与最强竞争解释 · ③ 可观察改判条件 · ④ 下一步动作 · ⑤ 底线失败例外**（通过项不啰嗦） | 否（轻量内联自查） |
 | **`[L1-Explore]`** | 头脑风暴、假说生成、机制推演、实验/统计识别设计 | 维护 **2–3 张轻量探索假说卡**（显式标 `exploratory`），每张卡固定五项：**① 最强对手 · ② 区分实验 · ③ 成本 · ④ 停止规则 · ⑤ 杀死条件** | 否（释放探索推演空间） |
 | **`[L2]`** | 写入图注/摘要/正文/汇报/投稿材料、正式审查核心论点、回应质疑 | **每次仅审 3–5 条核心主张**（不审全文）：建档登记证据 → 冻结盲审包 → 两个干净上下文独立执行夸大/低估审查 → 主代理逐条裁决 → 溯源校验并原子导出报告 | **是**（SQLite 持久状态机 + 机械门控） |
@@ -171,11 +173,11 @@ python scripts/install-antigravity.py --scope user --target C:\CustomAntigravity
 | **预测** `prediction` | `apparent` · `internally_validated` · `externally_validated` · `prospectively_evaluated` | 写明目标、时点与人群；外部区分度不等于临床效用或因果机制 |
 | **因果效应** `causal_effect` | `unidentified` · `identified_under_assumptions` · `sensitivity_supported` | 仅对指定 `estimand`、设计族与识别假设作因果表述 |
 | **机制** `mechanism` | `compatible` · `component_tested` · `causal_chain_tested` | 共表达/富集仅算 `compatible` 线索；完整链条须排查替代通路 |
-| **必要性** `necessity` | `bounded_test` · `counterfactual_supported` | 指定背景移除 $X$ 后 $Y$ 是否仍可发生；**绝不等于充分性** |
-| **充分性** `sufficiency` | `bounded_test` · `counterfactual_supported` | 指定背景提供 $X$ 能否产生 $Y$；**绝不等于必要性** |
+| **必要性** `necessity` | `bounded_test` · `counterfactual_supported` | 指定背景移除 X 后 Y 是否仍可发生；**绝不等于充分性** |
+| **充分性** `sufficiency` | `bounded_test` · `counterfactual_supported` | 指定背景提供 X 能否产生 Y；**绝不等于必要性** |
 | **证据综合** `synthesis` | `mapped` · `critically_appraised` · `synthesized_with_uncertainty` | 继承原研究偏倚与依赖结构；合并分析不能凭空制造因果识别 |
 | **理论** `theory` | `conjectured` · `proved_under_assumptions` · `independently_checked` | 强制 `claim_basis="formal"`；数值例子不代替证明 |
-| **质性** `qualitative` | `situated_description` · `interpretation_audited` · `triangulated` | 保留情境与反例，不强套总体频率或显著性 $p$ 值 |
+| **质性** `qualitative` | `situated_description` · `interpretation_audited` · `triangulated` | 保留情境与反例，不强套总体频率或显著性 p 值 |
 | **计算性能** `computational` | `benchmark_measured` · `reproduced` · `externally_evaluated` | 交代数据集、同预算基线与随机种子；榜单表现不等于真实部署收益 |
 | **工程** `engineering` | `test_passed` · `host_accepted` · `user_impact` | 单元测试通过不代替真实宿主验收，握手成功不等于用户实际收益 |
 
@@ -190,8 +192,8 @@ python scripts/install-antigravity.py --scope user --target C:\CustomAntigravity
 - **9 大设计包 (`design_packages`)**：`observational`、`quasi_experimental`、`randomized`、`prediction`、`ml`、`mechanism`、`evidence_synthesis`、`theory`、`qualitative`。各包核心检查严禁用 `not_applicable` 规避，同一类型内相邻等级绑定逐级递进的检查门槛。
 - **8 项统计报告 (`statistical_report`) 与 4 类溯源卡 (`provenance_cards`)**：覆盖样本量/独立重复单位、目标量与尺度、效应与不确定性、模型假设、缺失排除、多重比较、基线直接比较与稳健性限制；挂载 `citation`、`number`、`execution`、`search` 四类溯源卡。
 - **可计算效应核验 (`effect_records`)**：显式分离主终点（`primary` / `benchmark`）与次要/安全/探索终点（`secondary` / `safety` / `exploratory` / `sensitivity`），在声明适用前提下执行确定性核验：
-  - **区间与 $p$ 值自洽性**：对显式声明匹配双侧未调整 `inference_method="wald" | "log_wald"` 的记录，校验点估计、置信区间与 $p$ 值数学兼容性（其他或未声明方法诚实记为 `unassessed`，不伪造通过）。
-  - **GRIM 与整数分母粒度校验**：对声明 `count_basis="unweighted_binary"` 的比例/准确率指标，校验样本量 $n$、事件数与小数位数的整数可实现性。
+  - **区间与 p 值自洽性**：对显式声明匹配双侧未调整 `inference_method="wald" | "log_wald"` 的记录，校验点估计、置信区间与 p 值数学兼容性（其他或未声明方法诚实记为 `unassessed`，不伪造通过）。
+  - **GRIM 与整数分母粒度校验**：对声明 `count_basis="unweighted_binary"` 的比例/准确率指标，校验样本量 n、事件数与小数位数的整数可实现性。
   - **主终点跨零值拦截与次要终点解耦**：有方向的 `primary` / `benchmark` 命题若置信区间越过无效值（`primary_effect_crosses_null`）则阻断正向判定；已验证的主终点获益允许搭配无显著差异的 `secondary` / `safety` 终点。
 
 ---
@@ -221,15 +223,15 @@ python scripts/install-antigravity.py --scope user --target C:\CustomAntigravity
 | :--- | :--- | :--- |
 | **证据绑定与反占位符** | 填 `pass` 却无证据 ID，或理由写 `"ok"` / `"通过"` / `"见上"` / `"TBD"` | 所有 `pass` 检查必须含非空 `evidence_ids` 与实质理由；正向裁决必须显式引用支撑必选检查的证据 ID（`uncited_check_evidence`） |
 | **证据类型与合成隔离** | 把观察性数据标为 `intervention`；拿 `synthetic` 合成数据支撑真实经验结论 | 强校验 `kind` 与 `claim_type × evidence_level` 兼容矩阵；合成证据正判定仅限 `description × recorded` 与 `computational × benchmark_measured` |
-| **唯一原文锚点与词项关联** | 编造引用或随便截取一段无关页眉/版权声明凑数 | 正向引用须含 $\ge 6$ 个汉字或 $\ge 12$ 个 ASCII 可见字符、在原文**唯一匹配**的 `quote`，且必须与主张共享定量数值、领域实词或溯源卡定位（`unlinked_evidence_quote`） |
-| **大文本四角色分窗与血缘** | 日志含 ANSI 颜色码被拒；$>128\text{ KiB}$ 长文件尾部反证被截断掩盖；派生表洗白合成祖先 | 自动剥离 ANSI 控制序列；超 $128\text{ KiB}$ 文本凭唯一 `quote` 生成保留头部元数据、主引用、锚点与**尾部摘要**的预算内窗口；`derived_from_evidence_ids` 追踪上游哈希与合成属性 |
+| **唯一原文锚点与词项关联** | 编造引用或随便截取一段无关页眉/版权声明凑数 | 正向引用须含 ≥ 6 个汉字或 ≥ 12 个 ASCII 可见字符、在原文**唯一匹配**的 `quote`，且必须与主张共享定量数值、领域实词或溯源卡定位（`unlinked_evidence_quote`） |
+| **大文本四角色分窗与血缘** | 日志含 ANSI 颜色码被拒；>128 KiB 长文件尾部反证被截断掩盖；派生表洗白合成祖先 | 自动剥离 ANSI 控制序列；超 128 KiB 文本凭唯一 `quote` 生成保留头部元数据、主引用、锚点与**尾部摘要**的预算内窗口；`derived_from_evidence_ids` 追踪上游哈希与合成属性 |
 | **实质性意见落实与对称审计** | 标记 `incorporated` 却原封不动保留原句或只改虚词；无反证却一味降级弃权 | 要求 `revised_text_quote` 在建议文与修订文中唯一出现、不在原句中，并实质替换受批词项，否则须记为 `disagreement`；同时输出**非阻塞** `symmetry_audit` 提示过度免责与空弃权 |
 
 ---
 
-### 支柱四：零泄漏执行溯源、跨时间主张图谱与事后概率校准
+### 支柱四：执行溯源、跨时间主张图谱与事后概率校准
 
-1. **无密钥泄漏的命令溯源与防篡改事件链（`record-exec` & `events` Hash Chain）**
+1. **不采集环境密钥值的命令溯源与事件完整性核验（`record-exec` & `events` Hash Chain）**
    - `python -m parrhesia record-exec` 自动采集执行命令、Git 提交/脏状态、锁文件哈希、运行前后 `--input-file` / `--output-file` SHA-256，以及环境变量**存在性标记（仅记录键名状态，绝不写入密钥值）**。
    - **失败收据保留**：命令超时（返回码 `124`）、启动失败（返回码 `127`）或非零退出均保留持久失败日志、证据快照与事件记录，绝不覆盖历史日志；引擎按 `claim_id` / `run_group` 拦截隐藏失败分支（`selective_execution_omission`）与未校正多分支择优（`unadjusted_execution_multiplicity`）。
    - **SQLite 事件哈希链（`PRAGMA user_version = 2`）**：每条案例事件记录 `prev_event_hash` 与 `event_hash`，在 `verify` 与 `get_case` 中实时核验 `event_chain_status`（`verified` / `legacy_unhashed` / `mixed_verified` / `tampered`）。
@@ -277,17 +279,8 @@ python -m parrhesia serve --workspace C:\YourWorkspace
 python scripts/generate-policy.py --check
 python scripts/generate-policy.py
 
-# 2. 运行零泄漏静态审计与 Stage 0 机械评估套件
-python scripts/check-eval-leakage.py --strict
+# 2. 运行公开仓库当前支持的 Stage 0 模式
 python scripts/run-stage0-eval.py --mode mechanical --report-out docs/verification/stage0-evaluation.md
-python scripts/run-stage0-eval.py --mode counterfactual
-python scripts/run-stage0-eval.py --mode fork-multiplicity
-python scripts/run-stage0-eval.py --mode symmetry
-python scripts/run-stage0-eval.py --mode lineage-window
-python scripts/run-stage0-eval.py --mode heldout
-python scripts/run-stage0-eval.py --mode metamorphic
-python scripts/run-stage0-eval.py --mode p1-effects
-python scripts/run-stage0-eval.py --mode p2-longitudinal
 python scripts/run-stage0-eval.py --mode prompt-export --output-dir artifacts/stage0-prompts
 
 # 3. 运行自动化单元测试套件
@@ -297,6 +290,8 @@ python -m unittest discover -s tests -v
 python scripts/build-release.py --output dist/parrhesia-0.3.0.zip
 ```
 </details>
+
+公开仓库的 Stage 0 脚本当前仅提供 `mechanical` 与 `prompt-export` 模式。本地扩展评估脚本、测试修改与原始证据未随 README 发布，因此上述命令不代表重现全部本地验收。
 
 ---
 
@@ -312,6 +307,8 @@ Parrhesia 坚持“让结论与证据相称”，对自身 `0.3.0` 版本的成�
 | **确定性交叉门控 vs. 科学语义真理性**<br>*(系统固有架构边界)* | 引擎核验文件 SHA-256、唯一原文 `quote` 与主张词项/数值关联、设计包逐级必选检查、`pass` 证据绑定、显式研究设计冲突及 `input_manifest` | **确定性交叉核验不等于深层科学真理性证明**：门控能拦截敷衍填表、无证据 `pass`、相邻等级混用与未绑定结局，但不能脱离可复现执行链路独立识别精心伪造的原始文件，也不替代领域同行评审 |
 
 ---
+
+验收范围补充：失败执行项是**已安装 CLI 执行 → 原生宿主读回**，不是 MCP 执行任意命令。文件符号链接通过不覆盖目录 junction 或并发替换竞态；普通文件正对照登记成功。原始工具返回、测试、数据库及旧失败/跳过记录保留本地，公开验收摘要不是完整可复现证据包。
 
 ## 文档导航
 
