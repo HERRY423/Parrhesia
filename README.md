@@ -299,6 +299,8 @@ python scripts/build-release.py --output dist/parrhesia-0.3.0.zip
 
 Parrhesia 坚持“让结论与证据相称”，对自身 `0.3.0` 版本的成熟度同样严格按 `engineering` 与 `computational` 证据等级如实披露：
 
+**最新 CI（2026-11-14，`engineering × test_passed`）**：[提交 `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) 的 [GitHub Actions 运行](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809)在 Windows 和 Ubuntu（Python 3.11）均为 **117 项全部通过、0 失败、0 跳过**，规则生成一致性检查也通过。两个平台均安装 `jsonschema==4.26.0`，实际执行并通过 `test_actual_official_schemas`（schema 原始字节哈希、标识、Draft 2020-12 合法性及 `plugin.json` / `mcp.json` 校验）。此结果仅覆盖该提交的公开 CI 测试集，不替代历史测试计数，也不扩大下述 `host_accepted` 范围或改变剩余限制；原有失败和跳过记录保留。
+
 | 评估维度 | 当前等级与判定 | 已核实的证据与明确边界 |
 | :--- | :--- | :--- |
 | **Windows Codex 桌面宿主集成与原生符号链接拒绝**<br>(`engineering × host_accepted`，**支持**；限定范围) | 2026-11-14 于 Windows 11 + Python 3.13.9 + Codex 桌面端实际加载 `0.3.0` 冻结包（[验收摘要](docs/verification/release-0.3.0.md)）：完成伤害方向（`harm`）主张审查/裁定/导出、待裁定后继状态保持 `pending`、校准来源核验与失效剔除、CLI 超时/启动失败/非零退出收据→宿主读回，以及开启开发者模式后原生文件符号链接拒绝（原测试 1 通过、0 跳过；拒绝前后证据与事件零变动） | 证明在所测 Windows Codex 桌面会话与固定合成材料下，本地 MCP 工具链、状态机、事件哈希链与路径安全边界按契约运行。**边界**：角色内容为同上下文固定合成 fixture，不代表独立模型科学审查、其他宿主平台验收、全部 reparse point/并发竞态覆盖或真实用户净收益（`user_impact`） |

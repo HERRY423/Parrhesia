@@ -2,6 +2,8 @@
 
 ## 0.3.0 — 2026-11-14（源码与限定宿主验收）
 
+- 最新公开 CI：[提交 `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) 的 [Windows / Ubuntu 运行](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809)（Python 3.11）均为 **117 项全部通过、0 失败、0 跳过**，规则生成一致性检查通过。CI 固定安装 `jsonschema==4.26.0` 并检查可导入性，schema 快照禁止换行转换；两个平台均实际通过 `test_actual_official_schemas`，涵盖原始字节哈希、schema 标识与 Draft 2020-12 合法性、`plugin.json` / `mcp.json` 校验。
+- 该结果为指定提交公开 CI 测试集的 `engineering × test_passed`，不替代历史测试计数、不扩大下述 `host_accepted` 范围或改变剩余限制。保留[原始失败运行](https://github.com/HERRY423/Parrhesia/actions/runs/43606318762)及[修复后仍跳过 1 项的运行](https://github.com/HERRY423/Parrhesia/actions/runs/43607137788)；本地原始记录不随文档提交。
 - 将修复后的工作树与已安装的旧 0.2.0 明确区分；插件清单、Python 包、MCP 与报告版本统一为 0.3.0，具体字节身份以 RELEASE-MANIFEST.json 及 ZIP SHA-256 为准。验收绑定当时的冻结包；后续文档同步不重新打包或创建 GitHub Release。
 - 包含 22 个 MCP 入口、结构化效应检查、纵向关系、结局校准及执行溯源实现；修复命题支持与获益方向混淆、统计检查适用范围、草稿提前生效、未绑定结局评分及复现覆盖率定义。
 - 超时、启动失败和输出核验异常保留失败收据；不覆盖已有执行日志或历史证据。
