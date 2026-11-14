@@ -4,7 +4,7 @@
 本文件用于本仓库；向其他项目追加完整自含规则应使用 `templates/AGENTS.parrhesia.md`，同步 Codex 全局精简块与 `parrhesia-l2-reference` skill 应运行 `python scripts/install-codex.py`。
 
 ## 档位
-回答首行单独写本次实际采用的档位：`[L0]`、`[L1]`、`[L1-Explore]` 或 `[L2]`；进度消息不写。拿不准时用 L1，并告诉用户可以升级到 L2。档位只决定流程繁简，不改变证据标准（平台系统指令 > 平台开发者指令 > 用户消息；数据保密与花费上限 > 证据真实 > 强度匹配 > 完整表达已支持的贡献 > 效率；严禁编造数据、数字、引文、执行或检索，证据不足保留"证据不足"，用户期望不是证据）。
+回答首行单独写本次实际采用的档位：`[L0]`、`[L1]`（可写 `[L1-Judge]`）、`[L1-Explore]` 或 `[L2]`；进度消息不写。拿不准时用 L1，并告诉用户可以升级到 L2。档位只决定流程繁简，不改变证据标准（平台系统指令 > 平台开发者指令 > 用户消息；数据保密与花费上限 > 证据真实 > 强度匹配 > 完整表达已支持的贡献 > 效率；严禁编造数据、数字、引文、执行或检索，证据不足保留"证据不足"，用户期望不是证据）。
 - **L0**：翻译、排版、单一可核对事实、局部代码修改、只返回数值不解释含义的计算。直接完成，不加任何结构。
 - **L1（默认）**：解释、比较、建议、假说、证据判断，包括探索阶段。
 - **L1-Explore**：头脑风暴、假说生成、机制推演、实验设计或识别设计。
@@ -45,7 +45,8 @@
 | prediction | apparent · internally_validated · externally_validated · prospectively_evaluated | 写明目标、时点、人群；不等于效用或机制 |
 | causal_effect | unidentified · identified_under_assumptions · sensitivity_supported | 只针对指定的 estimand、设计和假设 |
 | mechanism | compatible · component_tested · causal_chain_tested | 共表达或富集只算线索 |
-| necessity / sufficiency | bounded_test · counterfactual_supported | 两者分别判断 |
+| necessity | bounded_test · counterfactual_supported | 在指定背景移除 X 后 Y 是否仍可发生；不等于充分性 |
+| sufficiency | bounded_test · counterfactual_supported | 在指定背景提供 X 能否产生 Y；不等于必要性 |
 | synthesis | mapped · critically_appraised · synthesized_with_uncertainty | 合并不能制造因果识别 |
 | theory | conjectured · proved_under_assumptions · independently_checked | 数值例子不代替证明 |
 | qualitative | situated_description · interpretation_audited · triangulated | 不套用总体频率或显著性 |
@@ -56,14 +57,14 @@
 
 ## L2 与 Parrhesia 工具
 1. 先读取 skill `parrhesia-l2-reference`，里面有科学检查清单、文字协议、溯源绑定规则、审查者隔离配方和校准锚点。
-2. 有 Parrhesia 工具时，按插件自带的 `parrhesia-review` skill 和插件契约操作。字段名、动作名和枚举值一律以当前安装版本的契约为准，不凭记忆猜。契约里没有的概念写进文字说明，不硬塞进字段。
-3. **溯源与预注册硬约束**：数字和引文必须来自 `record-exec` 或钩子绑定的输出（如 `reproducible-science` 的 `results` / `citations` / `repro` 钩子）；确证性分析前先冻结分析计划（用 `reproducible-science` 的 `prereg` 或预注册记录），未事先冻结的一律标 `exploratory`。
+2. 有 Parrhesia 工具时，按插件自带的 `parrhesia-review` skill 和插件契约操作（22 个 MCP 工具含 18 个强类型动作、`parrhesia_validate` 预检、`repair_hint`、资源/提示词与 3 个兼容工具；支持 `effect_records` 可算门控、`events` 哈希链、跨时间 `claim_graph`、可执行改判触发器与概率校准）。字段名、动作名和枚举值一律以当前安装版本的契约为准，不凭记忆猜。契约里没有的概念写进文字说明，不硬塞进字段。
+3. **溯源与预注册硬约束**：数字和引文必须来自 `record-exec`（自动采集输入/输出、git、lockfile 与仅非密钥标记）或钩子绑定的输出（如 `reproducible-science` 的 `results` / `citations` / `repro` 钩子）；确证性分析前先冻结分析计划（用 `reproducible-science` 的 `prereg` 或预注册记录），未事先冻结的一律标 `exploratory`。
 4. **审查者隔离配方**：派子代理时只给对应角色的审查包（`review_packet`），不继承起草对话历史；尽量关闭其记忆读取与历史会话检索；在审查反馈和最终报告中记录**输入清单**（packet_id、input_digest、盲审状态、主张与证据 ID 清单、未读证据、历史继承与记忆读取状态）。
 5. 核心流程：
    - 登记并冻结 3–5 条主张；
    - 在两个不继承起草历史的干净上下文中，分别做夸大审查和低估审查，每侧最多 3 条实质意见，可以是 0 条；
    - 主代理逐条决定采纳、部分采纳或驳回，对修订后的命题给出判定和改判条件；
-   - 按"写作与表达"中的结构交付。
+   - 按 L2 五项报告结构交付，附审查者输入清单。
 6. 无法隔离上下文时，在报告开头标注"非独立审查"；工具缺失时，说明"没有持久记录和机械核对"。不代用户填写"接受"，未获明确接受时标注"供审阅"。审查者和子代理不付费，也不修改台账。
 
 ## 本仓库开发

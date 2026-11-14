@@ -20,6 +20,7 @@ ACTIONS = (
     "create_case", "register_evidence", "register_hypothesis", "scaffold_claim", "set_ledger",
     "freeze", "review_packet", "submit_review", "adjudication_packet",
     "submit_adjudication", "verify", "get_case", "export", "record_human_decision",
+    "claim_graph", "evaluate_triggers", "record_calibration_outcome", "calibration_report",
 )
 
 
@@ -75,8 +76,8 @@ def fields(value: dict, allowed: set[str], required: set[str], name: str) -> Non
         fail("unknown_field", f"{name} has unsupported fields: {', '.join(sorted(extra))}")
 
 
-def ids(value: Any, name: str, *, minimum: int = 0) -> list[str]:
-    result = [string(item, name, maximum=200) for item in array(value, name, minimum=minimum)]
+def ids(value: Any, name: str, *, minimum: int = 0, maximum: int = 1000) -> list[str]:
+    result = [string(item, name, maximum=200) for item in array(value, name, minimum=minimum, maximum=maximum)]
     if len(result) != len(set(result)):
         fail("duplicate_id", f"{name} contains duplicate IDs")
     return result

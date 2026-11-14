@@ -37,6 +37,9 @@ CARD_FIELDS = {
     "execution": ("command", "code_version", "inputs", "environment", "started_at", "ended_at", "exit_status", "outputs", "log_locator"),
     "search": ("database", "query", "searched_at", "filters", "coverage", "results", "selection", "limitations"),
 }
+EXECUTION_DETAIL_OPTIONAL_FIELDS = ("claim_id", "run_group", "fork_role")
+EXECUTION_FORK_ROLES = ("primary", "exploratory", "exploratory_failed", "auxiliary_failed", "secondary_failed", "sensitivity")
+NON_PRIMARY_FAILED_FORK_ROLES = ("exploratory_failed", "auxiliary_failed", "secondary_failed")
 ESTIMAND_FIELDS = ("population", "contrast", "outcome", "time_horizon", "summary", "intercurrent_events")
 CAUSAL_TYPES = ("causal_effect", "necessity", "sufficiency")
 DEFAULT_FAMILY = {
@@ -57,7 +60,7 @@ DEFAULT_FAMILY = {
 def scaffold_claim_template(payload: dict) -> dict:
     """Build a schema-valid v2 claim skeleton with explicit unknown/not_run defaults."""
     obj(payload, "scaffold_claim")
-    allowed = {"case_id", "claim_id", "text", "scope", "claim_type", "evidence_level", "claim_basis", "domain", "design_families", "include_causal_basis"}
+    allowed = {"case_id", "claim_id", "text", "scope", "claim_type", "evidence_level", "claim_basis", "domain", "design_families", "include_causal_basis", "include_effect_records", "include_reversal_triggers", "include_prior_claim_links"}
     fields(payload, allowed, set(), "scaffold_claim")
     domain = enum(payload.get("domain", "scientific"), ("scientific", "general"), "domain")
     default_type = "description" if domain == "scientific" else "engineering"
@@ -86,6 +89,15 @@ def scaffold_claim_template(payload: dict) -> dict:
         fail("invalid_type", "include_causal_basis must be a boolean")
     if needs_causal_basis({"claim_type": claim_type, "evidence_level": evidence_level}) and not include_causal:
         fail("missing_causal_basis", "causal, necessity, sufficiency and causal_chain_tested claims require causal_basis")
+    include_effects = payload.get("include_effect_records", False)
+    if type(include_effects) is not bool:
+        fail("invalid_type", "include_effect_records must be a boolean")
+    include_triggers = payload.get("include_reversal_triggers", False)
+    if type(include_triggers) is not bool:
+        fail("invalid_type", "include_reversal_triggers must be a boolean")
+    include_links = payload.get("include_prior_claim_links", False)
+    if type(include_links) is not bool:
+        fail("invalid_type", "include_prior_claim_links must be a boolean")
 
     def unknown_assessment(reason: str = "Template only; no evidence supplied") -> dict:
         return {"status": "unknown", "reason": reason, "evidence_ids": []}
@@ -131,6 +143,28 @@ def scaffold_claim_template(payload: dict) -> dict:
             "necessity_test": unknown_assessment(),
             "sufficiency_test": unknown_assessment(),
         }
+    if include_effects:
+        claim["effect_records"] = []
+    if include_triggers:
+        claim["reversal_triggers"] = [
+            {
+                "id": f"{claim_id}-RT1",
+                "description": "UNKNOWN: state measurable observation or check condition that reverses or narrows this claim",
+                "kind": "check_status",
+                "target_check": "quality",
+                "target_statuses": ["fail", "unknown"],
+                "target_verdict": "insufficient_evidence",
+            }
+        ]
+    if include_links:
+        claim["prior_claim_links"] = [
+            {
+                "prior_case_id": "UNKNOWN",
+                "prior_claim_id": "UNKNOWN",
+                "relation": "replicates",
+                "reason": "UNKNOWN: explain how this claim tests, refines, supersedes, or refutes the prior claim",
+            }
+        ]
     return claim
 
 
@@ -220,14 +254,32 @@ def validate_content(claim, domain, known):
             if status == "checked" and not refs:
                 fail("missing_card_evidence", "checked cards need a registered source; this still does not certify truth")
             details = obj(card["details"], "card.details")
-            fields(details, set(detail_keys), set(detail_keys), "card.details")
+            optional_keys = set(EXECUTION_DETAIL_OPTIONAL_FIELDS) if kind == "execution" else set()
+            fields(details, set(detail_keys) | optional_keys, set(detail_keys), "card.details")
             for key in detail_keys:
                 string(details[key], "card.details." + key)
+            if kind == "execution":
+                for opt_key in ("claim_id", "run_group"):
+                    if opt_key in details:
+                        string(details[opt_key], "card.details." + opt_key, maximum=200)
+                if "fork_role" in details:
+                    role = enum(details["fork_role"], EXECUTION_FORK_ROLES, "card.details.fork_role")
+                    if status == "checked" and role in NON_PRIMARY_FAILED_FORK_ROLES:
+                        fail("invalid_value", "checked execution card cannot carry a failed fork_role")
     ids(card_ids, "card IDs")
     if needs_causal_basis(claim) and "causal_basis" not in claim:
         fail("missing_causal_basis", "causal, necessity and sufficiency claims require an explicit identification record (UNKNOWN allowed)")
     if "causal_basis" in claim:
         causal_basis(claim["causal_basis"], known, families)
+    if "effect_records" in claim:
+        from .effects import validate_effect_records
+        validate_effect_records(claim["effect_records"], known)
+    if "reversal_triggers" in claim:
+        from .triggers import validate_reversal_triggers
+        validate_reversal_triggers(claim["reversal_triggers"], domain)
+    if "prior_claim_links" in claim:
+        from .triggers import validate_prior_claim_links_shape
+        validate_prior_claim_links_shape(claim["prior_claim_links"])
 
 
 def validate_support(decision, claim):

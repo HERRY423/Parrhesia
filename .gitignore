@@ -12,3 +12,7 @@ workspaces/
 .env
 .env.*
 !.env.example
+
+# Local review evidence and newly created tests
+/review/
+/tests/

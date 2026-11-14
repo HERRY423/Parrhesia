@@ -1,65 +1,70 @@
-# 安装与宿主适配
+# Grok Build CLI 项目级适配
 
-Parrhesia 的主分发格式是 **Agent Plugins 1.0.0**。Grok Build 是附加适配路径；根目录的 `plugin.json`、`mcp.json` 和 `skills/` 才是可移植包，不以 `.claude-plugin` 或 `.grok-plugin` 代替它们。
+本适配面向 Grok Build CLI（已在 `grok 1.0.48` 验证部分项目发现行为），提供自含、幂等且可只读校验与安全卸载的工程安装器：仅操作目标项目目录，从不读写 `~/.grok`，不自动信任项目，也不调用任何模型。
 
-## 可移植插件
+真实大模型在 Grok CLI 会话内的行为效果为 **NOT_MEASURED**，端到端多代理 `0.2.0` 编排为 **NOT_RUN**；`0.1.0` 时代的原生 `grok inspect` / `mcp doctor` 握手记录保留在 [docs/verification/grok-native.json](verification/grok-native.json)，本版本另外新增 `grok 1.0.48` 下的清单校验与隔离仓库探测检查（见下文核验范围）。
 
-在支持 Agent Plugins 1.0.0 的客户端中，按该客户端的本地插件安装界面选择本目录或解压后的完整发行目录。标准没有统一安装命令，也不统一决定权限、信任和插件商店。
+## 快速接入（`0.2.0` 推荐配置）
 
-运行条件：`python` 能启动 Python 3.11 或更新版本。运行时只使用标准库，无须 `pip install`。客户端把根 `mcp.json` 映射成自己的 MCP 配置，展开 `${PLUGIN_ROOT}` 与 `${PLUGIN_DATA}`，再启动 `scripts/run-mcp.py`。包内代码可以位于只读目录；案件状态写入客户端持久数据目录的 `workspace/.parrhesia/`。
-
-首次使用先读取 `parrhesia_contract`。如果要审查现有科研项目，请明确选择该项目，再通过 `parrhesia_select_workspace` 切换；重新启动服务后需重新选择。选择结果和合同均回显活动工作区，所有相对证据路径以该目录为基准。标准没有 `${PROJECT_ROOT}` 变量，本插件不猜测客户端当前打开的项目。
-
-需要固定工作区时，可在启动客户端前由用户设置 `PARRHESIA_WORKSPACE` 为已存在的绝对路径。优先级为启动参数 `--workspace`、用户环境变量、客户端提供的默认数据目录。未展开的占位符和相对路径会明确报错。不要把本地路径写入公开发行版。
-
-可移植标准只定义技能与 MCP 发现；它没有承诺自动读取插件附带的 AGENTS 文件。请把 `templates/AGENTS.parrhesia.md` 作为补充合并到所选项目的 `AGENTS.md`，保留原有规则。插件技能与工具负责执行和留痕，AGENTS 补充负责触发条件、责任边界和最终表达。
-
-格式依据：[Agent Plugins manifest](https://agent-plugins.org/plugin-authors/manifest)、[MCP 配置](https://agent-plugins.org/plugin-authors/mcp-servers)、[规范 1.0.0](https://agent-plugins.org/specification)。支持该格式的客户端不等于已经对本插件完成实测；本仓库的验证记录只覆盖实际执行的路径。
-
-## Grok Build 项目适配
-
-已检查本机 `grok 1.0.48 (b94d5072c95f)` 的 CLI 契约。该版本的原生插件使用旧式 `.mcp.json` 配置。为避免把可移植包与宿主配置混在一起，提供明确的项目安装脚本：
+在目标项目已存在的前提下执行：
 
 ```powershell
-& C:\Parrhesia\scripts\install-grok.ps1 -Project 'C:\YourResearchProject'
+# 1. 默认安装（compact 精简规则块 < 10 KB + parrhesia-review & parrhesia-l2-reference 双技能 + MCP）
+python scripts/install-grok.py --project C:\YourProject
+
+# PowerShell 等价封装（支持指定 Python 3.11+、策略模式、校验与卸载）
+& .\scripts\install-grok.ps1 -Project C:\YourProject -Python python
+
+# 2. 只读校验已安装文件哈希、MCP 配置、双技能注册与仓库规则一致性
+python scripts/install-grok.py --project C:\YourProject --check
+
+# 3. 安全卸载（备份并剥离受管区块与 MCP 服务项，完整保留用户内容与第三方服务器）
+python scripts/install-grok.py --project C:\YourProject --uninstall
 ```
 
-如果 `python` 不指向 Python 3.11+，用 `-Python 'C:\path\to\python.exe'`。目标必须是已存在的项目。脚本执行以下本地变更：
+若需要向 `AGENTS.md` 写入完整单文件规则（`46,669 B`）而非默认精简块（`8,770 B` + 按需读取 `parrhesia-l2-reference`），可传 `--policy full`；若目标项目已有人工维护的规则，可传 `--skip-agents`。
 
-| 位置 | 作用 |
-| --- | --- |
-| `.grok/parrhesia/runtime/` | 独立复制 Python 运行时源码、启动器和工具合同；移动原始下载目录不会破坏安装 |
-| `.grok/skills/parrhesia-review/` | Grok 项目技能 |
-| `.mcp.json` 的 `mcpServers.parrhesia` | 使用安装时选定的 Python 和明确的项目路径启动服务 |
-| `AGENTS.md` 的受管理注释块 | 追加补充规则，保留项目已有内容；`-SkipAgents` 可跳过 |
-| `.grok/parrhesia/installation.json` | 文件归属与校验记录 |
-| `.grok/parrhesia/backups/` | 变更前的原文件副本，可能包含项目私有配置；留在本地 |
+## 写入项目的内容（`0.2.0` 完整包）
 
-重复执行没有变化时返回 `unchanged`。已有同名 MCP 配置、未受管理文件或被用户修改过的受管理文件会在写入前停止，要求人工合并。它不会覆盖其他 MCP 服务，也不会执行 `grok plugin install`、修改用户级配置、安装 Python 包、连接模型或授予更宽的宿主权限。备份和项目案件目录不应纳入公开发布。
+| 路径 | 用途与安全边界 |
+| :--- | :--- |
+| `.grok/skills/parrhesia-review/SKILL.md` | 核心触发决策、五要素输出契约与 L2 工具流程技能 |
+| `.grok/skills/parrhesia-l2-reference/SKILL.md` | `0.2.0` 新增：L2 九大设计包、八项统计报告、溯源卡片与隔离配方完整参考 |
+| `.grok/parrhesia/runtime/` | 完整自含的 `parrhesia/*.py`（含 `adapters.py`、`claims.py`、`gates.py`、`policy.py` 等）、`scripts/run-mcp.py`、`plugin.json`、`mcp.json`、`docs/contract.md` |
+| `.grok/parrhesia/installation.json` | 维护模式标识、所有权摘要（SHA-256）、`policy_mode`、`python_executable` 与 `mcp_server` 快照 |
+| `.grok/parrhesia/backups/` | 修改或卸载已有文件前生成的带时间戳原件备份 |
+| `.mcp.json` | 仅合并或更新 `mcpServers.parrhesia`，保留同级其他服务器与自定义顶级字段 |
+| `AGENTS.md` | 仅操作 `<!-- parrhesia:managed:start -->` 至 `<!-- parrhesia:managed:end -->` 之间的受管区块；默认注入 `compact_core`（`8,770 B`），可选 `--policy full`（`46,669 B`） |
 
-先在 Grok 中完成该项目的目录信任，然后用技能菜单调用 `/parrhesia-review`。未信任时，Grok 1.0.48 会隐藏项目技能和 AGENTS 指令；虽然 `inspect` 仍列出 MCP，`doctor` 不会启动它。安装脚本不替用户授予目录信任。用户检查过目标项目后，可在 Grok 首次打开时确认信任，或自行使用顶层参数 `grok --cwd 'C:\YourResearchProject' --trust inspect`。该授权涉及整个项目的本地能力，不只是 Parrhesia。
+若检测到下列情形，安装器在写入任何文件之前报错中止：
+- 目标或父路径包含符号链接或 Windows reparse point；
+- 已有受管文件、`AGENTS.md` 受管区块或 `mcpServers.parrhesia` 被外部工具或用户手工改动；
+- 待写入位置存在未被本适配器登记过的文件。
 
-完成信任后，刷新扩展列表或开启新会话；使用前可运行：
+## 在 Grok 中启用与校验
 
-```powershell
-grok --cwd 'C:\YourResearchProject' inspect
-grok --cwd 'C:\YourResearchProject' mcp doctor parrhesia --json
-```
+1. 运行安装后，打开 Grok Build CLI 对该项目的信任并核对配置发现状态：
+   ```powershell
+   grok --cwd C:\YourProject inspect
+   grok --cwd C:\YourProject mcp doctor parrhesia --json
+   ```
+   注：Grok 在未信任项目目录中会延迟激活项目指令与本地技能，但会先在 `grok inspect --json` 中列出 `.mcp.json`；本安装器不会代用户修改 `~/.grok` 中的项目信任状态。
+2. 在仓库或分发目录校验插件清单格式：
+   ```powershell
+   grok plugin validate .
+   ```
 
-`inspect` 证明发现了配置；`doctor` 验证本地服务连接及工具枚举。两者都不证明模型遵守双审查、不发生中性回避或科学结论正确。Grok 原生插件的信任/安装功能与本脚本的项目适配是不同路径，本脚本不宣称已做原生插件商店安装验收。
+## `0.1.0` 到 `0.2.0` 适配变更说明
 
-Grok 依据：[MCP 项目配置](https://docs.x.ai/build/features/mcp-servers)、[技能和插件发现](https://docs.x.ai/build/features/skills-plugins-marketplaces)。官方文档可能领先于安装版本，实际参数应再看本机 `grok <command> --help`。
+相对 `0.1.0`：
+1. 修复遗漏 `.grok/skills/parrhesia-l2-reference/SKILL.md` 的缺陷，现同步安装双技能；
+2. 默认 `AGENTS.md` 注入改为 `compact` 精简块（降低日常上下文占用并减少 L0/L1 越级泄露），保留 `--policy full` 兼容切换（从 `0.1.0` 旧安装升级时自动备份旧 `AGENTS.md` 并平滑迁移）；
+3. 新增 `--check`（纯只读完整性及来源漂移检查）、`--uninstall`（安全剥离受管项与重装兼容）及 `--python <path>`。
 
-## 更新、停用与边界
+## 核验范围与诚实边界
 
-更新时对同一项目重新运行脚本；发生冲突时先保留自己的修改，再对照备份合并。安装程序不会删除旧文件、案件或证据。需要停用时，在宿主中禁用该 MCP 服务，并撤回项目技能与 AGENTS 受管理块；按照 `installation.json` 的清单逐项处理，保留 `.parrhesia/` 和备份。不要把整个项目 `.grok/`、`.mcp.json` 或 `AGENTS.md` 删除。
-
-此插件不调用 Grok API，也不包含外部模型凭据。审查推理由当前宿主执行，其模型费用、数据传输和上下文隔离由宿主管理。工作流校验无法强制宿主创建真正独立的模型会话；若只有同一上下文可用，必须将隔离状态如实记为未建立，而不能把角色名差异当作独立审查。
-
-本地打包测试包括可移植占位符展开后的 stdio 握手、合同读取、安装副本启动、保留已有规则与 MCP、重复安装和冲突保护。具体通过情况以本次测试输出和交付说明为准；真实 Grok 推理效果仍需经批准的对照试用。
-
-## 本次实际宿主检查
-
-2026-10-09，在仓库内的独立测试项目和独立 `GROK_HOME` 中完成：Grok 1.0.48 发现 `parrhesia-review` 技能和项目 AGENTS 文件；`mcp doctor parrhesia --json` 完成本地服务启动、协议 `2025-11-25` 握手及 **3 个工具发现**，健康数 1、失败数 0。未信任目录的对照检查按预期拒绝启动服务。原生检查未发送模型请求。结果摘要保存在 [grok-native.json](verification/grok-native.json)，详细本地输出在 `artifacts/grok-native/`。
-
-注意该安装版本把 `--trust` 解析为顶层参数：`grok --trust ... mcp doctor` 有效，`grok mcp doctor --trust` 会拒绝该参数。此测试的信任记录只写入独立测试 `GROK_HOME`，未改变用户日常 Grok 的信任记录。
+- **已执行并记录**：
+  - `tests/test_adapters.py` 与 `tests/test_packaging.py`：检验双技能安装、`--policy compact|full` 与 `--skip-agents` 切换备份、`--check` 篡改与版本漂移检测、`--uninstall` 清理与用户内容保留、冲突拒绝写前中止，以及离开仓库目录的 stdio MCP 握手；
+  - `grok 1.0.48` 本机静态与发现校验：`grok plugin validate c:\Parrhesia` 校验清单，以及在独立 `git` 临时项目执行 `grok inspect --json` 核实 `.mcp.json` 中 `parrhesia` 服务发现；
+  - `0.1.0` 历史记录保留于 [docs/verification/grok-native.json](verification/grok-native.json)，不将其改写为 `0.2.0` 验收结果。
+- **未执行（`NOT_RUN` / `NOT_MEASURED`）**：真实 Grok 交互会话中模型对 L0/L1/L1-Explore/L2 规则的遵循度、跨子代理隔离质量与净误差改善。

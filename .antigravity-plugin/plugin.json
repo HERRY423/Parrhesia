@@ -1,0 +1,16 @@
+{
+  "name": "parrhesia",
+  "displayName": "Parrhesia",
+  "version": "0.3.0",
+  "description": "Evidence-calibrated conclusions through independent overclaim and underclaim review, explicit adjudication, and local provenance checks.",
+  "author": {
+    "name": "Herry",
+    "url": "https://github.com/HERRY423/Parrhesia"
+  },
+  "homepage": "https://github.com/HERRY423/Parrhesia",
+  "repository": "https://github.com/HERRY423/Parrhesia",
+  "suggestedPrompts": [
+    "用 Parrhesia 审查这篇草稿：先登记并冻结核心结论台账，再分别做夸大与低估双审并裁决。",
+    "进入 L1-Explore 轻量探索模式：为当前问题建立 2–3 张候选假说探索卡（最强对手、区分实验、成本、停止规则、杀死条件）。"
+  ]
+}
