@@ -6,6 +6,26 @@
     "name": "Herry"
   },
   "skills": "./skills/",
+  "userConfig": {
+    "python": {
+      "type": "string",
+      "title": "Python executable (3.11+)",
+      "description": "Use python, python3, or an absolute interpreter path available to Claude Code.",
+      "default": "python"
+    }
+  },
+  "mcpServers": {
+    "parrhesia": {
+      "type": "stdio",
+      "command": "${user_config.python}",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/run-mcp.py", "--default-workspace", "${CLAUDE_PLUGIN_DATA}/workspace"],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      }
+    }
+  },
   "keywords": [
     "evidence",
     "scientific-review",

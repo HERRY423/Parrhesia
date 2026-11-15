@@ -102,6 +102,10 @@ claude plugin marketplace add HERRY423/Parrhesia
 claude plugin install parrhesia@parrhesia-marketplace
 ```
 
+Claude 专用 `.claude-plugin/plugin.json` 已内联声明 MCP 服务，使用 `${CLAUDE_PLUGIN_ROOT}` 定位启动脚本、`${CLAUDE_PLUGIN_DATA}/workspace` 保存默认台账，不依赖通用 `mcp.json` 的变量。使用支持 `userConfig` 和上述变量的新版 Claude Code；在 `/config` 的插件配置中将 `python` 设置为可用的 Python **3.11+** 解释器（默认 `python`；Linux/macOS 可改为 `python3`，也可填绝对路径）。如设置了 `PARRHESIA_WORKSPACE`，它必须是已存在的绝对目录，并优先于默认目录。备份台账后再卸载插件；Claude 的插件数据目录可能随卸载删除。
+
+已安装旧清单的用户需更新插件并重启会话，确认缓存清单含 `mcpServers`，且 `/mcp` 中 Parrhesia 已连接；安装成功不等于服务可用。当前修复通过 Claude Code 2.1.325 严格清单校验及独立 MCP 子进程验证，**尚未完成 Claude Code 真实会话工作流验收**，不扩大下文 `host_accepted` 范围。[Claude 官方清单与变量说明](https://code.claude.com/docs/en/plugins-reference)
+
 #### 2. 标准 Agent Plugins 1.0.0 客户端挂载
 
 支持 Agent Plugins 1.0.0 规范的宿主可直接加载根目录 `plugin.json`、`mcp.json` 与 `skills/`，通过 stdio MCP 自动发现 **22 个本地工具**、只读资源与角色提示词：

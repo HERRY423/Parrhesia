@@ -1,5 +1,10 @@
 # 版本变更记录
 
+## 0.3.0 后续适配修复 — 2026-11-15
+
+- Claude 专用清单内联声明 stdio MCP 服务，改用 `CLAUDE_PLUGIN_ROOT` / `CLAUDE_PLUGIN_DATA`，并提供 Python 3.11+ 解释器配置；通用 Agent Plugins 清单保持不变。
+- Claude Code 2.1.325 严格清单校验及独立 MCP 子进程验证通过；真实 Claude 会话工作流仍待验收，不扩大原有 Windows Codex `host_accepted` 范围。已有冻结包身份与历史 CI 计数仍绑定原提交，不作为本次适配修改的验收。
+
 ## 0.3.0 — 2026-11-14（源码与限定宿主验收）
 
 - 最新公开 CI：[提交 `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) 的 [Windows / Ubuntu 运行](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809)（Python 3.11）均为 **117 项全部通过、0 失败、0 跳过**，规则生成一致性检查通过。CI 固定安装 `jsonschema==4.26.0` 并检查可导入性，schema 快照禁止换行转换；两个平台均实际通过 `test_actual_official_schemas`，涵盖原始字节哈希、schema 标识与 Draft 2020-12 合法性、`plugin.json` / `mcp.json` 校验。

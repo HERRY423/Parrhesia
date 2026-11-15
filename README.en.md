@@ -102,6 +102,10 @@ claude plugin marketplace add HERRY423/Parrhesia
 claude plugin install parrhesia@parrhesia-marketplace
 ```
 
+The Claude-specific `.claude-plugin/plugin.json` now declares the MCP server inline, using `${CLAUDE_PLUGIN_ROOT}` for the launcher and `${CLAUDE_PLUGIN_DATA}/workspace` for the default persistent ledger, independently of the generic `mcp.json` variables. Use a recent Claude Code version supporting `userConfig` and these variables. Set the plugin's `python` option in `/config` to a working Python **3.11+** interpreter (default: `python`; use `python3` on Linux/macOS when needed, or an absolute executable path). If set, `PARRHESIA_WORKSPACE` must be an existing absolute directory and overrides the default. Back up ledgers before uninstalling: Claude may delete plugin data on uninstall.
+
+Users with the old manifest must update the plugin and restart the session, verify that the cached manifest contains `mcpServers`, and confirm Parrhesia is connected in `/mcp`; installation alone does not establish server availability. This repair passed Claude Code 2.1.325 strict manifest validation and independent MCP subprocess checks; **real Claude Code session workflow acceptance is still pending**, and the `host_accepted` scope below is unchanged. [Official Claude manifest and variable reference](https://code.claude.com/docs/en/plugins-reference)
+
 #### 2. Standard Agent Plugins 1.0.0 clients
 
 Compatible hosts can load `plugin.json`, `mcp.json`, and `skills/` at the repository root, discovering **22 local tools**, read-only resources, and role prompts through stdio MCP:
