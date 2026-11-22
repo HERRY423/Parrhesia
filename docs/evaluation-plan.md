@@ -2,6 +2,15 @@
 
 状态：**评价设计，尚未执行正式模型效果评估**。工程测试和合成演示另行记录，不能填入本方案的语义收益结果。使用真实研究材料、外部模型或付费调用之前，提交具体样本范围、数据去向、分析计划和费用上限，由用户批准。
 
+2026-11-16 输入布局更新：规则改为按需参考后，静态 prompt 导出显式拼接适用材料。`B_full` 为通用入口 + L2 参考 + 工具工作流；`E_full_l2_workflow` 为主 skill + 精简入口 + L2 参考 + 工具工作流。导出标记 `policy_layout=layered-v1`，记录五个来源文件的字节数与 SHA-256，区别入口体积与实际拼接体积。新布局不可与历史单体规则运行合并统计；原有记录不改写，也不据此声称遵从度提高。正式比较须按新输入重新冻结计划。
+
+
+2026-11-17 工程刷新：当前字节数来自本轮实际输入测量（详见 [核验记录](verification/evaluation-modernization-2026-11-17.md)），不是模型 token 数。历史报告已原样归档；`stage0-cases.json` 的种子、阈值与预期结果不改写。历史“heldout”已多次暴露，本轮只作为回归集；词法零重叠不能证明新的泛化能力。新 `ingestion-v1` 单独检验稿件 → 产物 → 效应 → 预填 → 冻结/审查/报告链路，不能替代纯文本语义召回。
+
+本轮用户选择“先完成工程评测与试验准备”。[作者负担试评准备](evaluation/author-impact-pilot.md)采用 B / S / E-manual / E-prefill 四组，区分填表成本与额外审查收益；该设计尚未获得真实观测，不与旧 Stage 0 四组混合。可运行 `python -X utf8 scripts/prepare-impact-pilot.py prepare --output <新目录>`，无需模型调用。
+
+2026-11-17 提示修复：原 Stage 0 JSON 和判定阈值保留；新 `text-advisory-regression-v1` 读数允许“原漏检 → 非阻断提示”，与原 `expectation_matched` / `heldout.all_passed` 并列，禁止把提示计入硬检出。新增 38 个修改前冻结的开发案例与 8 个语义边界诊断案例；它们均由已看过旧失败的开发者编写，不能称为独立盲测。旧词法零重叠检查只覆盖旧词表；新提示模块逐规则公开重叠和案例常量检查。当前回归还要求正对照及变形案例零误提示。
+
 ## 待检验的产品假说
 
 核心假说是：在给定资料和预算内，分开的夸大/低估审查加上单一裁决，能提高“主张与证据匹配、对当前问题明确表态”的联合质量。它不假定多 Agent 必然优于一次模型调用，也不把措辞更强当成收益。
@@ -19,24 +28,36 @@
 | 组别 | 提供给模型的能力 | 回答的问题 |
 |---|---|---|
 | A：原始宿主基线（`A_baseline`） | 同一模型、相同资料和任务；无 Parrhesia 规则 | 现状是什么 |
-| B-精简：现用精简块（`B_compact`） | A + 精简规则块（约 4 KB，含 L1-Explore 轻量探索台账与日常工作流）；无插件编排 | 精简常驻规则是否足够且不劣于全文 |
-| B-全文：41 KB 全文规则（`B_full`） | A + 完整 41 KB 规则参考（或 `parrhesia-l2-reference` 全文）；无插件编排 | 全文常驻规则与精简块的校准差异及上下文开销 |
+| B-精简：现用精简块（`B_compact`） | A + 精简规则块（`templates/AGENTS.parrhesia.codex.md`，本轮实测 `8,665 B`，含统一四档契约与 `L1-Explore` 轻量探索台账；L2 场景按需联用 `26,094 B` `parrhesia-l2-reference` skill）；无插件编排 | 精简常驻规则（及按需 L2 参考）是否足够且不劣于全文 |
+| B-全文：全文规则（`B_full`） | A + 完整全文规则（`templates/AGENTS.parrhesia.md`，当前拼接 `46,582 B`；入口本身 `8,938 B`，原冻结套件中的 `41 KB` 仅保留为历史标签）；无插件编排 | 全文常驻规则与精简块的校准差异及上下文开销 |
 | C：单向批评 | B + 台账 + 夸大审查 + 最终修订 | 只有找错是否产生过度保守 |
 | D：双向审查，无独立裁决 | B + 台账 + 两份分别审查；原作者整合 | 独立裁决是否有额外价值 |
-| E：完整 Parrhesia（`E_full_l2_workflow`） | B + `parrhesia-l2-reference` + L2 台账冻结 + 角色包隔离双向审查 + 单一独立裁决 + 核对 | 完整 L2 双审裁决流程是否值得采用 |
+| E：完整 Parrhesia（`E_full_l2_workflow`） | B + `parrhesia-review` 入口（`3,058 B`；静态 E 提示词拼接后 `49,368 B`）+ L2 台账冻结 + 角色包隔离双向审查（记录 `input_manifest` 与可选 `isolation_attestation`，缺省记 `UNKNOWN`）+ 单一独立裁决 + 核对 | 完整 L2 双审裁决流程是否值得采用 |
 
 ## Stage 0 对照评估设计要点与日常工作流
 
-Stage 0 对照评估聚焦 **A（无 Parrhesia 规则）**、**B-精简（现用）**、**B-全文（41 KB）**、**E（完整流程）** 四组，通过 `python scripts/run-stage0-eval.py` 复现机械门控基线并导出四组对照提示词包：
+Stage 0 对照评估聚焦 **A（无 Parrhesia 规则）**、**B-精简（现用 `8,665 B` + 按需 `26,094 B`）**、**B-全文（拼接 `46,582 B`）**、**E（拼接 `49,368 B`）** 四组；语料规格定义于 `docs/evaluation/stage0-cases.json`，严格按 **`dev_phrase_consistency`（开发期门控一致性）**、**`heldout_generalization`（零泄漏保留泛化）**、**`metamorphic_invariance`（不变性变换）**、**`p1_effect_records`（P1 结构化效应检验集，单独分栏）** 与 **`p2_longitudinal_calibration`（P2 跨时间主张图谱、触发器与校准检验集，单独分栏）** 分栏报告（配合 `python scripts/check-eval-leakage.py --strict` 静态/动态泄漏审计与 `python scripts/run-stage0-eval.py`）：
+
+- **开发期一致性语料（`dev_phrase_consistency`）**：保留原核心案例并扩展至 **40 个基础 L2 案例**（覆盖 10 类科学/工程家族 × 4 场景）、**9 个 `L1-Explore` 案例**（`EXP-01..09`）、**Card A 60 次反事实证据敏感性运行**（20 正例 × 3 扰动：数字锚定/极性错位为硬阻断 `unanchored_effect_estimate`，纯文本否定/待出结局提示在 P0-1 记为非阻断 `lexical_advisories`）、**Card B 60 次执行分支与多重性门控运行**（20 正例 × 3 场景：`F1` SQLite 未交代/失败运行触发硬阻断 `selective_execution_omission`，`F2` 纯文本单次/未校正提示触发 `possible_unadjusted_multiplicity_text` 非阻断建议，`F3` 校准正对照零误报通过）、**6 组双生敏感性配对案例**（`PAIR-01..06`）、**4 组衍生血缘与 `>128 KiB` 分片窗口规格**（`LIN-01..04`），以及非阻断对称性审计 **Card C**（136 次运行，覆盖 5 项 hooks）。
+- **零泄漏保留泛化集（`heldout_generalization`）**：新增 **24 个仿真现实措辞正对照**（`HRC-01..24`，含阴性次要终点、安全不良事件无差异对比、条件限制与学术讨论段落，检验 P0-1 低误拒率 `heldout_realistic_false_rejection_rate < 0.05`）与 **12 个对抗改写案例**（`HADV-01..12`，诚实区分 `6/12` 可被数字/SQLite/超窗尾段机制硬检出，与 `6/12` 仅靠纯自然语言语义伪装的案例显式记为 `uncaught_without_llm_or_p1`，等待已批准的外部 LLM 双审或填入结构化 `effect_records`）。
+- **不变性变换集（`metamorphic_invariance`）**：新增 **12 组等价不变性变换**（`META-01..12`，从句重排、无显著不良反应对比、近零比值比修饰、文献对比），验证非矛盾学术措辞调整不破坏已校准通过率。
+- **P1 结构化效应检验集（`p1_effect_records`，单独分栏，`--mode p1-effects`）**：新增 **12 个结构化 `effect_records` 检验案例**（`PEFF-01..12`：`PEFF-01` 验证主要终点显著获益并存 `null` 次要/安全终点时不误阻断且 `FRR = 0`；`PEFF-02..06` 验证 `primary_effect_crosses_null`、`unanchored_effect_record`、`effect_pvalue_ci_mismatch`、`effect_grim_inconsistent`、`effect_direction_mismatch` 及 SQLite 哈希事件链 `event_chain_status=verified`；`PEFF-07..12` 作为 `HADV-07..12` 的结构化 `effect_records` 对应体验证 `6/6` 可计算硬拦截，**与纯自然语言 `heldout_generalization` 严格分栏报告**，不替代也不篡改纯文本 `HADV-07..12` 的 `6/12` 机械召回率）。
+- **P2 跨时间主张图谱、触发器与校准检验集（`p2_longitudinal_calibration`，单独分栏，`--mode p2-longitudinal`）**：新增 **8 个纵向演进与校准案例**（`PLONG-01..08`：`4` 个正对照覆盖多案例 `claim_graph` 轨迹与 `active_standing` 不篡改旧冻结记录、全部 5 类 `reversal_triggers` 确定性 `evaluate_triggers` 求值、导出后只追加 `record_calibration_outcome` 不改写冻结摘要/事件链，以及 `calibration_report` Brier/对数得分、ECE/MCE、主区间覆盖率/`z_drift` 与 `trigger_precision`；`4` 个负陷阱验证 `self_triggering_reversal_condition`、`contradictory_claim_lineage_transition`、`untriggered_reversal_link` 与 `unlinked_prior_case`，且全部保持 `event_chain_status=verified`）。**与 `heldout_generalization` 及 `p1_effect_records` 分别独立分栏报告**。
+- **零泄漏检查与提示词导出（`--mode prompt-export` + `check-eval-leakage.py --strict`）**：导出内联规则包前自动校验 `parrhesia/gates.py` 启发式短语/正则集合对 `heldout_*` 与导出 `arms` 的词法及 3-gram 零泄漏，确保**标准答案、预期错误码、场景/扰动 ID 与内部 `evidence_kind` 标签不进入 `arms`**。
 
 1. **统计单位**：统计单位是案例（case），同一模型的重复运行用于评估随机变异，**重复运行不算独立样本**。
-2. **主终点与非劣效框架**：主终点为 **B-精简（现用）相对 B-全文（41 KB）的校准通过率**，采用非劣效框架（non-inferiority framework），非劣效界值在运行前冻结（预设 `Δ_NI = -0.05`，即精简版校准通过率不低于全文版超过 5 个百分点）。
-3. **新增探索类案例（`L1-Explore`）的指标**：
+2. **主终点与非劣效框架**：主终点为 **B-精简（现用）相对 B-全文（原冻结规范标为 `41 KB`，当前拼接输入为 `46,582 B`）的校准通过率**，采用非劣效框架（non-inferiority framework），非劣效界值在运行前冻结（预设 `Δ_NI = -0.05`，即精简版校准通过率不低于全文版超过 5 个百分点）。
+3. **10 家族等覆盖、双向配对敏感性与 P0-1 阻断/建议边界**：
+   - **全家族等覆盖（`equal_coverage_accuracy`）**：在原 6 类基础上补齐 `evidence_synthesis`（`SYNTH-01..04`）、`theory`（`THEORY-01..04`，显式 `claim_basis="formal"`）、`qualitative`（`QUAL-01..04`）与 `general`/`engineering`（`ENG-01..04`，显式 `domain="general"`），共 10 类家族 × 4 场景（`overclaim_trap`、`underclaim_trap`、`rubber_stamp_trap`、`calibrated_valid`）= 40 个基础 L2 案例；
+   - **双向敏感性配对控制（`paired_evidence_sensitivity_concordance`）**：`paired_sensitivity_cases`（`PAIR-01..06`）为强正例（`strong_twin`）匹配同主题/近表层措辞的弱对照（`weak_twin`），要求同时“放行 `strong_twin` + 检出 `weak_twin`”；在 P0-1 边界下，数字锚定/`kind`/引证错位类弱对照触发硬阻断（`weak_twins_rejected`），纯文本缺失结局或否定从句类弱对照触发非阻断 `lexical_advisories`（`weak_twins_advisory_flagged`），二者区分报告；
+   - **衍生血缘与分片长文本窗口检查（`synthetic_lineage_blocking_rate`、`chunked_window_head_tail_recall`）**：`lineage_window_specs`（`LIN-01..04`）验证 `synthetic` 祖先经 `derived_from_evidence_ids` 衍生伪装后仍被 `synthetic_empirical_support` 阻断，合法的 `hash_verified_unread_binary_ancestors` 可读衍生摘要允许通过并在 `verification` 中报告 `evidence_chains`，以及 `>128 KiB` 长文本经 `excerpt_anchors` 与 `<<<PARRHESIA_EXCERPT_WINDOW ...>>>` 保留 `head_metadata`、`quote_primary`、`anchor_excerpt`、`tail_summary` 槽位（`LIN-03` 尾部矛盾句触发非阻断 `possible_contradictory_evidence_text` 建议；`LIN-04` 未锚定截断阻断 `unread_positive_evidence`）；
+   - **Card-C 非阻断对称性审计（`symmetry_audit`）**：接入内核 `audit_underclaim_and_abstention` 与 `collect_lexical_advisories`（`severity="advisory"`、`non_blocking=true`），分别输出 `flags`（`possible_false_abstention`、`possible_unjustified_downgrade`、`unsupported_without_counterevidence`、`possible_boilerplate_overhedging`、`rejected_underclaim_finding_advisory`）与纯文本 `lexical_advisories`，并检验精准边界正对照误报率为 0。
+4. **新增探索类案例（`L1-Explore`）的指标（`EXP-01..09`）**：
    - 在首次出现假阳性结论前，已完成的区分实验数（`discriminating_experiments_before_first_fp`）；
    - 杀死错误假说所用步数（`steps_to_kill_false_hypothesis`）；
    - 总消耗（`total_consumption`：tokens / USD / 墙钟时间）。
-4. **Stage 0 范围与样本量声明**：**Stage 0 只估计方差和可执行性**。上一份报告估算，要检出 15 到 20 个百分点的绝对提升，需要约 120 到 160 个案例——这是上一份报告的样本量估算，不是实测结果。
-5. **外部模型调用审批边界**：**外部模型调用需要用户先批准**，本评价方案与 `scripts/run-stage0-eval.py` 均强制遵守该要求（未获批准前 `external_llm_status="not_run"`，绝不伪造模型评测分数）。
+5. **Stage 0 范围与样本量声明**：**Stage 0 只估计方差、检验机械门控边界与零泄漏可行性**。上一份报告估算，要检出 15 到 20 个百分点的绝对提升，需要约 120 到 160 个案例——这是上一份报告的样本量估算，不是实测结果。
+6. **外部模型调用审批边界**：**外部模型调用需要用户先批准**，本评价方案、`docs/evaluation/stage0-cases.json` 与 `scripts/run-stage0-eval.py` 均强制遵守该要求（未获批准前 `external_llm_status="not_run"` 且 `requires_prior_user_approval=true`，绝不伪造模型评测分数）。
 
 **推荐的日常工作流（不新增工具）**：探索阶段全程 `L1-Explore`（对每个候选假说维护轻量探索台账卡：最强对手、区分实验、成本、停止规则、杀死条件，标 `exploratory`），不建 L2 持久台账、不双审。确证阶段把 3 到 5 条核心主张送入 `L2`。只有写入图注、摘要或正文时才走完整双审。
 
@@ -70,7 +91,7 @@ Stage 0 对照评估聚焦 **A（无 Parrhesia 规则）**、**B-精简（现用
 | 实用成本 | 实际费用、总 token、墙钟时间、人工复核时间 | 并发降低延迟不等于降低费用 |
 | 用户控制 | 是否能暂停、拒绝、补充、恢复且保留旧判定 | 输出“已采纳”不是研究者实际接受 |
 
-主结果报告夸大、低估、空泛中立三种错误各自的变化，以及“无严重证据错误且判定完整”的联合通过率。不要只汇成一个掩盖权衡的总分。置信度高/中/低先评价理由与证据一致性；除非另外收集有明确定义的概率预测及可验证结果，不计算或宣传概率校准分数。
+主结果报告夸大、低估、空泛中立三种错误各自的变化，以及“无严重证据错误且判定完整”的联合通过率；在 `docs/evaluation/stage0-cases.json` 与 `scripts/run-stage0-eval.py` 中，必须按 **`dev_phrase_consistency`**、**`heldout_generalization`**、**`metamorphic_invariance`**、**`p1_effect_records`** 与 **`p2_longitudinal_calibration`** 五栏分别报告分维指标，除原有 9 项设计维度（`overstatement_rate`、`understatement_rate`、`false_abstention_rate`、`valid_abstention_accuracy`、`known_valid_retention_rate`、`equal_coverage_accuracy`、`paired_evidence_sensitivity_concordance`、`synthetic_lineage_blocking_rate`、`chunked_window_head_tail_recall`）外，Stage 0 机械报告显式增列 `overstatement_rejection_rate`、`false_abstention_detection_rate`、`unjustified_downgrade_detection_rate`、`calibrated_false_alarm_rate`、`heldout_realistic_false_rejection_rate`、`heldout_adversarial_mechanical_recall`、`heldout_adversarial_uncaught_rate`、`metamorphic_invariance_rate`、`p1_effect_records_catch_rate`、`p1_effect_records_false_rejection_rate`、`p2_longitudinal_calibration_rate`、`p2_longitudinal_positive_pass_rate`、`p2_longitudinal_trap_catch_rate`、`leakage_strict_passed` 与 `live_llm_eval_status="not_run"`，同时严格区分硬门控阻断（如 `unanchored_effect_estimate`、`selective_execution_omission`、`primary_effect_crosses_null`、`unanchored_effect_record`、`effect_pvalue_ci_mismatch`、`effect_grim_inconsistent`、`effect_direction_mismatch`、`self_triggering_reversal_condition`、`contradictory_claim_lineage_transition`、`untriggered_reversal_link`、`unlinked_prior_case`）与非阻断 `lexical_advisories`（及 `unsupported_despite_beneficial_primary_effect` 低估提示），不得只汇成一个掩盖双向权衡或混合开发/保留集的总分。置信度高/中/低先评价理由与证据一致性；仅当对裁决显式填写 `[0.0, 1.0]` `forecast_probability` 并通过只追加 `record_calibration_outcome` 记录可核验结局时，才由 `calibration_report` 计算 Brier/对数得分、分箱 ECE/MCE、主区间覆盖率/`z_drift` 与触发器精确率。
 
 严重错误包括捏造执行/引文/数字，把未知当已通过，错误的因果升级，删除影响结论的反证，以及用“明确结论”要求压过真实证据不足。合法不确定性或合适的安全约束本身不是产品缺陷。
 

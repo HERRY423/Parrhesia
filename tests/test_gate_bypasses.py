@@ -1,6 +1,8 @@
 """Regression probes for bypasses found during the 2026-10-19 local audit."""
 from contextlib import closing
+from copy import deepcopy
 import json
+from pathlib import Path
 import sqlite3
 import unittest
 
@@ -510,6 +512,357 @@ class GateBypassTests(unittest.TestCase):
         payload["decisions"][0]["revised_text"] = finding["proposed_text"]
         disp["revised_text_quote"] = "Short-term symptom scores were associated with exposure"
         self.engine.dispatch("submit_adjudication", payload)
+
+    def test_card_a_signed_numeric_polarity_metadata_priority_and_negations(self):
+        # 1. Signed numeric anchoring: prevent sign-flip (-0.40 -> +0.40 or neutral 0.40) while preserving reduction wording
+        self.cid = self.engine.dispatch("create_case", {"question": "Signed effect?", "draft": "D", "writer_context_id": "writer"})["case_id"]
+        (self.root / "signed.txt").write_text(
+            "Table 1 (baseline) and Fig 2 (cohort flow), alpha = 0.05.\n"
+            "Primary endpoint: delta = -0.40 (95% CI -0.70 to -0.10).\n"
+            "Negative control outcome: no statistically significant difference (p = 0.74).\n"
+            "Prior work in unrelated cohort reported null effect across sites and sensitivity +0.40.\n",
+            encoding="utf-8",
+        )
+        self.ev = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "signed.txt", "provenance": "observed", "kind": "observation",
+            "quote": "Primary endpoint: delta = -0.40 (95% CI -0.70 to -0.10).",
+            "location": "line 2",
+        })["evidence_id"]
+
+        # Positive sign flip +0.40 rejected even though unquoted line 4 mentions +0.40 (quote priority wins!)
+        c_flip = self.claim("association", "adjusted", "observational")
+        c_flip["text"] = "Primary delta = -0.40 (95% CI -0.70 to -0.10)."
+        p_flip = self.reviewed(c_flip)
+        p_flip["decisions"][0]["revised_text"] = "Primary endpoint delta = +0.40 (95% CI +0.10 to +0.70)."
+        self.error("unanchored_effect_estimate", "submit_adjudication", p_flip)
+
+        # Unsigned neutral delta = 0.40 rejected against negative -0.40
+        p_flip["decisions"][0]["revised_text"] = "Primary endpoint delta = 0.40 (95% CI 0.10 to 0.70)."
+        self.error("unanchored_effect_estimate", "submit_adjudication", p_flip)
+
+        # Claiming p = 0.74 or Fig 2 or alpha = 0.05 as an effect estimate rejected
+        for bogus in (
+            "Primary endpoint delta = 0.74 (95% CI 0.10 to 0.70).",
+            "Primary endpoint HR = 2 (95% CI 1 to 2).",
+            "Primary endpoint delta = 0.05 (95% CI 0.01 to 0.10).",
+        ):
+            p_flip["decisions"][0]["revised_text"] = bogus
+            self.error("unanchored_effect_estimate", "submit_adjudication", p_flip)
+
+        # Directional reduction wording + signed negative both pass even alongside benign negative-control clause
+        p_flip["decisions"][0]["revised_text"] = "Primary endpoint showed a reduction of 0.40 (95% CI 0.10 to 0.70)."
+        self.engine.dispatch("submit_adjudication", p_flip)
+
+        # 2. Claim type change no longer skips fabricated effect numbers in claim.effect
+        self.cid = self.engine.dispatch("create_case", {"question": "Type change?", "draft": "D", "writer_context_id": "writer"})["case_id"]
+        (self.root / "hr1.txt").write_text("Observational study: adjusted HR = 1.00 (95% CI 0.85 to 1.18).\n", encoding="utf-8")
+        self.ev = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "hr1.txt", "provenance": "observed", "kind": "observation",
+            "quote": "Observational study: adjusted HR = 1.00 (95% CI 0.85 to 1.18).",
+            "location": "line 1",
+        })["evidence_id"]
+        c_downgrade = self.claim("causal_effect", "identified_under_assumptions", "observational")
+        c_downgrade["text"] = "Treatment effect in observational study HR = 1.62 (95% CI 1.21 to 2.16)."
+        c_downgrade["effect"] = {"estimate": "HR = 1.62", "uncertainty": "95% CI 1.21 to 2.16"}
+        # Submit with insufficient_evidence stance, then try rubber-stamping downgraded claim_type=association
+        self.save(c_downgrade)
+        fr = self.engine.dispatch("freeze", {"case_id": self.cid})
+        for role in ("overclaim", "underclaim"):
+            pkt = self.engine.dispatch("review_packet", {"case_id": self.cid, "role": role})
+            self.engine.dispatch("submit_review", {
+                "case_id": self.cid, "role": role, "packet_id": pkt["packet_id"],
+                "input_digest": fr["input_digest"], "reviewer": {"context_id": role, "model": "fixture"},
+                "covered_claim_ids": ["C1"],
+                "claim_stances": [{"claim_id": "C1", "stance": "insufficient_evidence", "rationale": "Overstated causal effect", "evidence_ids": []}],
+                "unread_evidence_ids": [], "findings": [],
+            })
+        adj = self.engine.dispatch("adjudication_packet", {"case_id": self.cid})
+        with self.assertRaises(ContractError) as caught_num:
+            self.engine.dispatch("submit_adjudication", {
+                "case_id": self.cid, "adjudication_id": adj["adjudication_id"],
+                "input_digest": adj["input_digest"], "adjudicator": {"context_id": "writer", "model": "fixture"},
+                "unread_evidence_ids": [],
+                "decisions": [{
+                    "claim_id": "C1", "verdict": "supported", "claim_type": "association",
+                    "evidence_level": "adjusted", "claim_basis": "empirical",
+                    "scope": c_downgrade["scope"],
+                    "revised_text": "Treatment was associated with outcome in the observational study.",
+                    "rationale": "Fixture", "evidence_ids": [self.ev], "confidence": "medium",
+                    "confidence_reason": "Fixture", "boundary": "Cohort", "reversal_condition": "Null",
+                }],
+                "dispositions": [],
+            })
+        self.assertEqual(caught_num.exception.code, "unanchored_effect_estimate")
+
+        # 3. Negated evidence_kind & P2/null paraphrases emit non-blocking lexical advisories (not hard fail)
+        for bad_kind, bad_text, expected_detail in (
+            ("intervention", "Cohort with no randomization and pseudo-random allocation showed benefit.", "observational_source_declared_as_intervention"),
+            ("prediction_external", "Internal 5-fold cross-validation only; future external validation needed.", "internal_validation_declared_as_external"),
+            ("prediction_prospective", "Retrospective chart review; lacks prospective validation cohort.", "retrospective_source_declared_as_prospective"),
+        ):
+            self.cid = self.engine.dispatch("create_case", {"question": "Kind negation?", "draft": "D", "writer_context_id": "writer"})["case_id"]
+            (self.root / "kind.txt").write_text(bad_text + "\n", encoding="utf-8")
+            self.ev = self.engine.dispatch("register_evidence", {
+                "case_id": self.cid, "path": "kind.txt", "provenance": "observed", "kind": bad_kind,
+                "quote": bad_text[:45], "location": "line 1",
+            })["evidence_id"]
+            if bad_kind == "intervention":
+                c_k = self.claim("causal_effect", "identified_under_assumptions", "randomized")
+            elif bad_kind == "prediction_external":
+                c_k = self.claim("prediction", "externally_validated", "prediction")
+            else:
+                c_k = self.claim("prediction", "prospectively_evaluated", "prediction")
+            c_k["text"] = bad_text
+            p_k = self.reviewed(c_k)
+            res_k = self.engine.dispatch("submit_adjudication", p_k)
+            self.assertEqual(res_k["state"], "adjudicated")
+            self.assertIn(
+                ("possible_evidence_kind_mismatch", expected_detail),
+                {(a["hook_code"], a["detail_code"]) for a in res_k["symmetry_audit"]["lexical_advisories"]},
+            )
+
+        for phrase, expected_hook, expected_detail in (
+            ("Outcome results omitted; awaiting outcome follow-up.", "possible_outcome_pending_text", "outcome_stripped_or_pending_evidence"),
+            ("No statistically significant difference; failed to improve primary survival.", "possible_contradictory_evidence_text", "null_or_contradicting_evidence"),
+        ):
+            self.cid = self.engine.dispatch("create_case", {"question": "Paraphrase?", "draft": "D", "writer_context_id": "writer"})["case_id"]
+            (self.root / "para.txt").write_text(f"Trial cohort analysis: {phrase}\n", encoding="utf-8")
+            self.ev = self.engine.dispatch("register_evidence", {
+                "case_id": self.cid, "path": "para.txt", "provenance": "observed", "kind": "observation",
+                "quote": f"Trial cohort analysis: {phrase}"[:55], "location": "line 1",
+            })["evidence_id"]
+            c_p = self.claim("association", "unadjusted", "observational")
+            c_p["text"] = "Trial cohort analysis improved survival."
+            p_p = self.reviewed(c_p)
+            p_p["decisions"][0]["revised_text"] = c_p["text"]
+            res_p = self.engine.dispatch("submit_adjudication", p_p)
+            self.assertEqual(res_p["state"], "adjudicated")
+            self.assertIn(
+                (expected_hook, expected_detail),
+                {(a["hook_code"], a["detail_code"]) for a in res_p["symmetry_audit"]["lexical_advisories"]},
+            )
+            exp_p = self.engine.dispatch("export", {"case_id": self.cid})
+            self.assertEqual(exp_p["state"], "exported")
+            self.assertIn(expected_hook.replace("_", "\\_"), Path(exp_p["path"]).read_text(encoding="utf-8"))
+
+    def test_card_b_scoped_forks_not_run_bypass_and_disclosed_failed_fork(self):
+        import io
+        import sys
+        from unittest.mock import patch
+        from parrhesia.claims import CARD_FIELDS
+        from parrhesia.cli import main as cli_main
+
+        # 1. Multi-claim case: C1 has 1 run (--claim-id C1), C2 has 2 runs (--claim-id C2). C1 is NOT contaminated by C2.
+        self.cid = self.engine.dispatch("create_case", {"question": "Multi-claim forks?", "draft": "D", "writer_context_id": "writer"})["case_id"]
+        exec_outs = []
+        for cid_arg, label in (("C1", "bench-c1-ok"), ("C2", "bench-c2-a"), ("C2", "bench-c2-b")):
+            buf = io.BytesIO()
+            with patch.object(sys, "stdout", type("S", (), {"buffer": buf})()):
+                rc = cli_main([
+                    "record-exec", "--workspace", str(self.root),
+                    "--case-id", self.cid, "--claim-id", cid_arg, "--card-id", f"ex-{label}",
+                    "--", sys.executable, "-c", f"print('{label} accuracy=0.91')",
+                ])
+            self.assertEqual(rc, 0)
+            exec_outs.append(json.loads(buf.getvalue().decode("utf-8")))
+        self.assertEqual(len({o["log_path"] for o in exec_outs}), 3)
+
+        (self.root / "scoped-benchmark.txt").write_text("Bench accuracy = 0.91 across 2 seeds; benchmark result fixture.", encoding="utf-8")
+        bench = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "scoped-benchmark.txt", "kind": "benchmark", "provenance": "reported",
+            "quote": "Bench accuracy = 0.91 across 2 seeds; benchmark result fixture.", "location": "L1",
+        })["evidence_id"]
+        ev_c1 = exec_outs[0]["evidence"]["evidence_id"]
+        self.ev = bench
+        c1 = self.claim("computational", "benchmark_measured", "ml")
+        c1["id"] = "C1"
+        c1["evidence_ids"] = [bench, ev_c1]
+        c1["text"] = "Bench C1 accuracy = 0.91."
+        c1["provenance_cards"]["execution"] = [exec_outs[0]["execution_card"]]
+
+        ev_c2_a = exec_outs[1]["evidence"]["evidence_id"]
+        self.ev = bench
+        c2 = self.claim("computational", "benchmark_measured", "ml")
+        c2["id"] = "C2"
+        c2["text"] = "Bench C2 accuracy = 0.91 across 2 seeds."
+        c2["evidence_ids"] = [bench, ev_c2_a, exec_outs[2]["evidence"]["evidence_id"]]
+        c2["provenance_cards"]["execution"] = [
+            {
+                "id": "nr-bypass", "status": "not_run", "reason": "Trying to hide recorded runs behind not_run",
+                "evidence_ids": [], "details": {k: "UNKNOWN" for k in CARD_FIELDS["execution"]},
+            }
+        ]
+        self.engine.dispatch("set_ledger", {"case_id": self.cid, "claims": [c1, c2]})
+        fr = self.engine.dispatch("freeze", {"case_id": self.cid})
+        # Reviewer stance on C1 alone succeeds (not contaminated by C2!), whereas C2 fails due to SQLite record_exec events despite not_run!
+        pkt = self.engine.dispatch("review_packet", {"case_id": self.cid, "role": "overclaim"})
+        with self.assertRaises(ContractError) as caught_not_run:
+            self.engine.dispatch("submit_review", {
+                "case_id": self.cid, "role": "overclaim", "packet_id": pkt["packet_id"],
+                "input_digest": fr["input_digest"], "reviewer": {"context_id": "over", "model": "fixture"},
+                "covered_claim_ids": ["C1", "C2"],
+                "claim_stances": [
+                    {"claim_id": "C1", "stance": "supported", "rationale": "Single scoped run verified", "evidence_ids": [bench, ev_c1]},
+                    {"claim_id": "C2", "stance": "supported", "rationale": "Hiding behind not_run", "evidence_ids": [bench, ev_c2_a]},
+                ],
+                "unread_evidence_ids": [], "findings": [],
+            })
+        self.assertEqual(caught_not_run.exception.code, "selective_execution_omission")
+
+        # 2. Disclosed exploratory failed fork alongside passing primary run:
+        # Does NOT deadlock ceiling, and cleanly triggers unadjusted_execution_multiplicity until adjusted!
+        self.cid = self.engine.dispatch("create_case", {"question": "Disclosed failed fork?", "draft": "D", "writer_context_id": "writer"})["case_id"]
+        (self.root / "ok.log").write_text("command: py ok\nstarted_at: t0\nended_at: t1\nexit_status: 0\nmacro-F1 = 0.88 across all 2 forks with Holm adjustment.\n", encoding="utf-8")
+        (self.root / "fail.log").write_text("command: py fail\nstarted_at: t0\nended_at: t1\nexit_status: 1\nexploratory sweep diverged\n", encoding="utf-8")
+        ev_ok = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "ok.log", "provenance": "observed", "kind": "benchmark",
+            "label": "Recorded command execution log", "quote": "macro-F1 = 0.88 across all 2 forks with Holm adjustment.", "location": "line 5",
+        })["evidence_id"]
+        ev_fail = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "fail.log", "provenance": "observed", "kind": "benchmark",
+            "label": "Recorded command execution log", "quote": "exploratory sweep diverged", "location": "line 5",
+        })["evidence_id"]
+        self.ev = ev_ok
+        c_fork = self.claim("computational", "benchmark_measured", "ml")
+        c_fork["text"] = "Benchmark macro-F1 = 0.88 across all 2 forks."
+        c_fork["evidence_ids"] = [ev_ok, ev_fail]
+        c_fork["checks"]["multiplicity"] = {"status": "pass", "reason": "Holm adjustment across all 2 forks"}
+        c_fork["statistical_report"]["multiplicity_selection"] = {
+            "status": "pass", "reason": "Holm adjustment applied across all 2 execution forks including failed run", "evidence_ids": [ev_ok],
+        }
+        c_fork["provenance_cards"]["execution"] = [
+            {
+                "id": "ex-primary", "status": "checked", "reason": "Primary run exited zero", "evidence_ids": [ev_ok],
+                "details": {**{k: "UNKNOWN" for k in CARD_FIELDS["execution"]}, "exit_status": "0", "fork_role": "primary"},
+            },
+            {
+                "id": "ex-failed", "status": "failed", "reason": "Secondary exploratory hyperparameter fork hit OOM and is disclosed",
+                "evidence_ids": [ev_fail],
+                "details": {**{k: "UNKNOWN" for k in CARD_FIELDS["execution"]}, "exit_status": "1", "fork_role": "exploratory_failed"},
+            },
+        ]
+        # Verify positive ceiling IS allowed (no deadlock!), AND passes end-to-end when multiplicity is cited
+        from parrhesia.gates import ceiling
+        self.assertIn("benchmark_measured", ceiling(c_fork, "computational")["allowed_levels"])
+        p_ok = self.reviewed(c_fork)
+        self.engine.dispatch("submit_adjudication", p_ok)
+
+        # Without a passing run, failed card still blocks ceiling even if tagged exploratory_failed
+        c_only_fail = deepcopy(c_fork)
+        c_only_fail["provenance_cards"]["execution"] = [c_only_fail["provenance_cards"]["execution"][1]]
+        self.assertNotIn("benchmark_measured", ceiling(c_only_fail, "computational")["allowed_levels"])
+
+    def test_chunked_window_delimiters_never_pollute_numeric_or_polarity_checks(self):
+        from parrhesia.core import PACKET_TEXT_BYTES
+        from parrhesia.gates import effect_numbers_anchored, strip_window_markers
+
+        big_path = self.root / "huge_study.txt"
+        body_pad = ("Routine background log sentence with zero clinical effect.\n") * 2600
+        primary_line = "Primary endpoint achieved AUROC = 0.84 (95% CI 0.79-0.89) across cohort."
+        full_text = f"HEADER study=ICU-multi\n{body_pad}{primary_line}\n{body_pad}TAIL end_note\n"
+        self.assertGreater(len(full_text.encode("utf-8")), PACKET_TEXT_BYTES)
+        big_path.write_text(full_text, encoding="utf-8")
+
+        ev_big = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "huge_study.txt", "provenance": "observed",
+            "kind": "prediction_external", "quote": primary_line, "location": "line 2602",
+        })["evidence_id"]
+        self.ev = ev_big
+        c_big = self.claim("prediction", "externally_validated", "prediction")
+        c_big["text"] = "Model achieves AUROC = 0.84 (95% CI 0.79-0.89)."
+        c_big["effect"] = {"estimate": "AUROC = 0.84", "uncertainty": "95% CI 0.79-0.89"}
+
+        # 1. Verify delimiter header metadata numbers (e.g. total_chars, chars=, lines=) cannot pass effect_numbers_anchored!
+        self.save(c_big)
+        fr = self.engine.dispatch("freeze", {"case_id": self.cid})
+        pkt = self.engine.dispatch("review_packet", {"case_id": self.cid, "role": "overclaim"})
+        ev_pkt = next(e for e in pkt["evidence"] if e["evidence_id"] == ev_big)
+        self.assertIn("<<<PARRHESIA_EXCERPT_WINDOW", ev_pkt["source_text"])
+        total_chars_val = ev_pkt["excerpt_window"]["total_chars"]
+        self.assertNotIn("PARRHESIA_EXCERPT_WINDOW", strip_window_markers(ev_pkt["source_text"]))
+
+        fake_claim = deepcopy(c_big)
+        fake_claim["effect"] = {"estimate": f"N={total_chars_val}", "uncertainty": "UNKNOWN"}
+        fake_claim["text"] = f"Cohort N={total_chars_val} achieved improvement."
+        fake_dec = {
+            **fake_claim, "claim_id": "C1", "verdict": "supported",
+            "revised_text": fake_claim["text"], "evidence_ids": [ev_big],
+        }
+        self.assertFalse(effect_numbers_anchored(fake_claim, fake_dec, [ev_pkt]))
+
+        # 2. Genuine anchored numbers in chunked >128 KiB window DO pass end-to-end!
+        for role, ctx in (("overclaim", "over-w"), ("underclaim", "under-w")):
+            p_role = self.engine.dispatch("review_packet", {"case_id": self.cid, "role": role})
+            self.engine.dispatch("submit_review", {
+                "case_id": self.cid, "role": role, "packet_id": p_role["packet_id"],
+                "input_digest": fr["input_digest"], "reviewer": {"context_id": ctx, "model": "fixture"},
+                "covered_claim_ids": ["C1"],
+                "claim_stances": [{"claim_id": "C1", "stance": "supported", "rationale": "Chunked AUROC anchored", "evidence_ids": [ev_big]}],
+                "unread_evidence_ids": [ev_big], "findings": [],
+            })
+        ap = self.engine.dispatch("adjudication_packet", {"case_id": self.cid})
+        self.engine.dispatch("submit_adjudication", {
+            "case_id": self.cid, "adjudication_id": ap["adjudication_id"], "input_digest": ap["input_digest"],
+            "adjudicator": {"context_id": "adj-w", "model": "fixture"}, "unread_evidence_ids": [ev_big],
+            "dispositions": [], "decisions": [{
+                "claim_id": "C1", "claim_basis": "empirical", "claim_type": "prediction",
+                "evidence_level": "externally_validated", "scope": c_big["scope"], "verdict": "supported",
+                "revised_text": "Model achieves AUROC = 0.84 (95% CI 0.79-0.89).",
+                "rationale": "Anchored inside >128 KiB chunked excerpt window",
+                "evidence_ids": [ev_big], "confidence": "high", "confidence_reason": "External validation chunk anchored",
+                "boundary": "Same cohort distribution", "reversal_condition": "Lower external AUROC",
+            }],
+        })
+
+    def test_synthetic_derived_lineage_cannot_launder_empirical_support(self):
+        (self.root / "syn_raw.txt").write_text("Simulated synthetic Monte Carlo output beta=0.92.\n", encoding="utf-8")
+        (self.root / "der_mid.txt").write_text("Intermediate table generated from source run beta=0.92.\n", encoding="utf-8")
+        (self.root / "der_leaf.txt").write_text("Mortality association OR = 2.10 (95% CI 1.50-2.95) in adults.\n", encoding="utf-8")
+
+        ev_raw = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "syn_raw.txt", "provenance": "synthetic",
+            "kind": "synthetic", "quote": "Simulated synthetic Monte Carlo output beta=0.92.", "location": "line 1",
+        })["evidence_id"]
+        ev_mid = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "der_mid.txt", "provenance": "observed",
+            "kind": "observation", "quote": "Intermediate table generated from source run beta=0.92.", "location": "line 1",
+            "derived_from_evidence_ids": [ev_raw], "derivation_step": "Normalized raw scores",
+        })["evidence_id"]
+        ev_leaf = self.engine.dispatch("register_evidence", {
+            "case_id": self.cid, "path": "der_leaf.txt", "provenance": "observed",
+            "kind": "observation", "quote": "Mortality association OR = 2.10 (95% CI 1.50-2.95) in adults.", "location": "line 1",
+            "derived_from_evidence_ids": [ev_mid], "derivation_step": "Computed association OR table",
+        })["evidence_id"]
+
+        self.ev = ev_leaf
+        c_emp = self.claim("association", "unadjusted", "observational")
+        c_emp["text"] = "Mortality association OR = 2.10 (95% CI 1.50-2.95) in adults."
+        c_emp["effect"] = {"estimate": "OR = 2.10", "uncertainty": "95% CI 1.50-2.95"}
+        self.save(c_emp)
+        fr = self.engine.dispatch("freeze", {"case_id": self.cid})
+        pkt = self.engine.dispatch("review_packet", {"case_id": self.cid, "role": "overclaim"})
+        with self.assertRaises(ContractError) as err_syn:
+            self.engine.dispatch("submit_review", {
+                "case_id": self.cid, "role": "overclaim", "packet_id": pkt["packet_id"], "input_digest": fr["input_digest"],
+                "reviewer": {"context_id": "over-syn", "model": "fixture"}, "covered_claim_ids": ["C1"],
+                "claim_stances": [{"claim_id": "C1", "stance": "supported", "rationale": "Cites leaf observation", "evidence_ids": [ev_leaf]}],
+                "unread_evidence_ids": [], "findings": [],
+            })
+        self.assertEqual(err_syn.exception.code, "synthetic_empirical_support")
+
+        # Tampered cyclic lineage blocks verify & validate_mechanical without infinite recursion.
+        from parrhesia.gates import validate_mechanical
+        by_ev_cycle = {
+            e["evidence_id"]: {**e, "source_text": "Mortality association OR = 2.10 (95% CI 1.50-2.95) in adults.", "source_text_status": "complete"}
+            for e in self.engine.dispatch("get_case", {"case_id": self.cid})["evidence"]
+        }
+        by_ev_cycle[ev_raw]["derived_from_evidence_ids"] = [ev_leaf]
+        with self.assertRaises(ContractError) as err_cyc:
+            validate_mechanical(
+                {**c_emp, "claim_id": "C1", "verdict": "supported", "revised_text": c_emp["text"], "evidence_ids": [ev_leaf]},
+                c_emp, by_ev_cycle,
+            )
+        self.assertEqual(err_cyc.exception.code, "invalid_lineage")
 
 
 if __name__ == "__main__":

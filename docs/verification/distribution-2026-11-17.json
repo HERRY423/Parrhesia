@@ -1,0 +1,194 @@
+{
+  "date": "2026-11-17",
+  "scope": "local distribution and saved-case report engineering checks",
+  "claim_type": "engineering",
+  "evidence_level": "test_passed",
+  "tests": [
+    {
+      "log": "review/distribution-2026-11-17/regression-passed.log",
+      "tests": 46,
+      "seconds": 9.472,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "9aaab650ba46d15703280a2bd5edb0141b9681d3d5ba463215385d54f78d48f8"
+    },
+    {
+      "log": "review/distribution-2026-11-17/adapters.log",
+      "tests": 12,
+      "seconds": 32.365,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "b58b529642ae10b3c59cbf0d3781d102a5b0a0f188cdd53c77f5077111f627f5"
+    }
+  ],
+  "distinct_tests_passed": 58,
+  "wheel": {
+    "status": "passed",
+    "python": "3.13.9",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "build_isolation": false,
+    "installation_isolation": "fresh_venv_no_system_site_packages",
+    "wheel": {
+      "file": "parrhesia_review-0.4.0-py3-none-any.whl",
+      "sha256": "aa402125c74323b86a186173664d588a46e61860e080f56b5fc3d23bd909b1d8",
+      "bytes": 253254
+    },
+    "checks": {
+      "wheel_inventory_and_bytes": true,
+      "version": "0.4.0",
+      "distribution_fallback": true,
+      "import_inside_venv": true,
+      "stdio_tools": 25,
+      "console_and_module": true,
+      "case_report_read_only": true
+    },
+    "commands": [
+      {
+        "label": "build",
+        "returncode": 0
+      },
+      {
+        "label": "venv",
+        "returncode": 0
+      },
+      {
+        "label": "install",
+        "returncode": 0
+      },
+      {
+        "label": "isolated-import",
+        "returncode": 0
+      },
+      {
+        "label": "console-contract",
+        "returncode": 0
+      },
+      {
+        "label": "module-version",
+        "returncode": 0
+      },
+      {
+        "label": "console-version",
+        "returncode": 0
+      },
+      {
+        "label": "mcp",
+        "returncode": 0
+      },
+      {
+        "label": "synthetic-fixture",
+        "returncode": 0
+      },
+      {
+        "label": "case-report",
+        "returncode": 0
+      }
+    ],
+    "case_report": {
+      "file": "synthetic-case.html",
+      "sha256": "801fbd7585882ceeef1fc9f61a31f5de60eb093af5ca7dad260b117b0bb9603d",
+      "fixture": "SYNTHETIC_NO_MODEL_CALL",
+      "case_id": "case_ded2c7ab01a346f8a74f67b628d5bbb2"
+    },
+    "source_sha256": {
+      "LICENSE": "1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6",
+      "docs/artifact-ingestion.md": "19f24044ee2dea74a105f45144c73ed8f1e927d22fe9a1e06610b87079c46b5f",
+      "docs/contract.md": "6069286f14a9f3fa5fad6a20c51b4daec8a464d7add7e783a28de9f95f4e5b75",
+      "mcp.json": "e1ea29facaa0955c906e5196e87499c0811462542f9f31c64cf8e3b6791cbca2",
+      "parrhesia/__init__.py": "942f4458f84ce3b0cb0553a5c03e1a2533f66aee570a4adc0fca13ba823a5b8e",
+      "parrhesia/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+      "parrhesia/adapters.py": "0048cedb916ca02ba90b51e2a89363a4b3fddb54af0e62e4207867cc8af66ce7",
+      "parrhesia/artifacts.py": "ea89889a7c4919168c172b8cc8c753251ef4e7441ed42cd0817f9f671c8b496b",
+      "parrhesia/binary_artifacts.py": "4bd0274fc8f921757964a20e50b135f9d8906ca9ca702226e5e1923a499eca78",
+      "parrhesia/calibration.py": "b5a690f3a976ac04591fbf476bda63a9ff2e7814ee2f023942828df7e2f060aa",
+      "parrhesia/claim_graph.py": "e027e34d375307b76b21e74f4e1a7348ec8065bba3e4d99f8a3b7fc7d16c0374",
+      "parrhesia/claims.py": "a652471ce2b13c9f7c6d39b93fd7c10c6dd1c7cd2958634247d4095b556a6b59",
+      "parrhesia/cli.py": "df52bf9233b02331dfdbca7a44c0a4caec13ad947ecaa361812858fd5cb15ac7",
+      "parrhesia/contract_docs.py": "6e768bb975210ea9ab2a02e449b186af8de375b4cfe0d70fedf0eff40cc0ebd3",
+      "parrhesia/contracts.py": "baf169b3a79373aadf8a5f2ec54de363cd26f3b733966b2823251490250121d7",
+      "parrhesia/core.py": "4db6663092e08901142427fbf2956283feab7552d351bf5d59985c2dd956dadf",
+      "parrhesia/demo.py": "b6b391b3662ff167dadaa61d4348395ff5b3a0e04babaafa62def1b6a280b002",
+      "parrhesia/effects.py": "2ac42410e27ba3966edfcadd34007d0d455d25573ef06607b640963a0206eae7",
+      "parrhesia/gates.py": "e2ee19ffef3a61c7453d3cea8eec95ccda989275595730c29dff807b834ee9aa",
+      "parrhesia/manuscript.py": "1c340d5cf5a419b439424f02f46b7e4b1dff696470e968ed2e2c18c6074d5306",
+      "parrhesia/mcp_prompts.py": "fe867948fce3c6cabb660087d9871acf6cfd7d243e53eb9cbd8f342b65d3ae08",
+      "parrhesia/mcp_schemas.py": "b10f69eff32587cbf9be317c133c1f1220d231bf09e6fd602d4d1724084e8b4d",
+      "parrhesia/packets.py": "74aaceb27ac9cb6906db27b191445c4283a299c156e78bc43bfb6ee6c94875c6",
+      "parrhesia/pdf_reader.py": "e6e20aedad39b663356a6beb60760320efdd222153c2f9680872963c6122a6d7",
+      "parrhesia/policy.py": "eb0d30638866fbc6def9a9291999cdccabce4c61560c28af128f6e99d5f8c777",
+      "parrhesia/prefill.py": "d411af9d7bc1cacd72cb476e25e6c4de8737599e633616dbd01a8e3eebe5a3cc",
+      "parrhesia/provenance.py": "1555da8535fe46bd199a84d1b91f83d17baaacffdac0f579d68874ba4f2fc6e1",
+      "parrhesia/report.py": "4f760a552eceacb2f52cedac27608a9239aedd4ec4549ca6d81c66e0ea0d55f4",
+      "parrhesia/server.py": "445cffcd0fbf848ac52aecb543dd343bd227926ea9f253fad2fe4d8197dfa269",
+      "parrhesia/stat_import.py": "aa74d08188a3c10320affd2e5e8df4b01d527b2ae68804d198675fed1c21c252",
+      "parrhesia/storage.py": "ab4ad955fea4dbbd416ca54162a17541cd096eb25945cdc3506fa167adfc058a",
+      "parrhesia/symmetry_audit.py": "c36eb03b03ac59c961a95f82ff5a5d3ae3d507adcc326612fdcaadd4417495d6",
+      "parrhesia/text_anchors.py": "45107bca7c4a3d4b903346b64cab6f9f421d1b7fd82455474db70a55f568bd1f",
+      "parrhesia/triggers.py": "fbdb5c31bea3b125e183d498e42895f5aa064cd67ebbccfdaf5cd3f2eda8c74a",
+      "plugin.json": "fef88e0aa493f7be47e0c84fe538951ab9630f3cfd7f00908809d6df93cba9a7",
+      "pyproject.toml": "2836c80b664fbf1ac3f5bfde5a642c62de247668a01231aec9f8eae63450ff32",
+      "scripts/run-mcp.py": "e376a5b929ed93d66bc33f952fdfbcff60c8d670a386fbc64706931650f1d32a"
+    }
+  },
+  "wheel_log_root": "review/distribution-2026-11-17/wheel-final",
+  "source_hashes_match_after_run": true,
+  "policy_generation_check": "passed",
+  "changed_tracked_files_whitespace_check": "passed",
+  "ci": {
+    "configured_platforms": [
+      "windows-latest",
+      "ubuntu-latest"
+    ],
+    "python": "3.11",
+    "default_build_isolation": true,
+    "executed_remote": false
+  },
+  "not_established": [
+    "current installed host discovery or invocation",
+    "Linux execution",
+    "local PEP 517 isolated build",
+    "real scientific case validity or user impact",
+    "full test suite status"
+  ],
+  "failure_history": [
+    {
+      "path": "review/distribution-2026-11-17/wheel-local/report.json",
+      "observed": "console launcher returned 1 with no output in restricted execution; exact cause unresolved"
+    },
+    {
+      "path": "review/distribution-2026-11-17/wheel-native/report.json",
+      "observed": "saved-case reporting changed database bytes; replaced writable Engine initialization/dispatch with read-only snapshot"
+    },
+    {
+      "path": "review/distribution-2026-11-17/distribution-tests-fixed.log",
+      "observed": "development test exposed wrong SQLite key column; corrected before accepted run"
+    },
+    {
+      "path": "review/distribution-2026-11-17/regression-final.log",
+      "observed": "missing-audit test used a fixture with an actual saved audit; separated missing-record fixture before accepted run"
+    }
+  ],
+  "files_sha256": {
+    "scripts/install-codex.py": "ab9493cdc0121f8ca129d66f54d2e8cdfe54bb09eaa900f3353f84e87934facc",
+    "scripts/install-grok.py": "f907a402f14293297487d2d58947ae612a6928dc42c5a626564974c9ec1e1480",
+    "scripts/install-antigravity.py": "db639d6d706ec6fb4b48c52143b9f256b19ad0d31a7bca11552efa1cefba65ac",
+    "scripts/check-wheel.py": "aecf78077ad72fbe6bcf6b7841ff7f1e6b5bb0c5ca7939efde9a0767c9693ba6",
+    "parrhesia/adapters.py": "0048cedb916ca02ba90b51e2a89363a4b3fddb54af0e62e4207867cc8af66ce7",
+    "parrhesia/core.py": "4db6663092e08901142427fbf2956283feab7552d351bf5d59985c2dd956dadf",
+    "parrhesia/storage.py": "ab4ad955fea4dbbd416ca54162a17541cd096eb25945cdc3506fa167adfc058a",
+    "parrhesia/cli.py": "df52bf9233b02331dfdbca7a44c0a4caec13ad947ecaa361812858fd5cb15ac7",
+    "parrhesia/report.py": "4f760a552eceacb2f52cedac27608a9239aedd4ec4549ca6d81c66e0ea0d55f4",
+    "tests/test_distribution.py": "b360cc8394cb39192ae22ebeb9a5240296d7044bfb0e9131f0e7bb4f4791c4b3",
+    ".github/workflows/policy.yml": "c979955c2df76bedc6687b554ee9ef9b2d5510cff6ee635c6b7d9dd46a964bd9",
+    "policy/parrhesia-policy.md": "5a8b4dc160ee9195cb2d936f7a7b3d24dfdbdfd0243837007c02e526dc42ef20",
+    "AGENTS.md": "8e24d9a76e7360c35f73aa7343606a4eb747434d7fc76c03324523839869a3a9",
+    "docs/distribution.md": "ccfaffbef86c84fd656d3299d731e7711d2db7c1d2b84a42f9615e4f6b794562",
+    "docs/contract.md": "6069286f14a9f3fa5fad6a20c51b4daec8a464d7add7e783a28de9f95f4e5b75",
+    "README.md": "7f886ce96ea790cbe2823518c100293fae97290300b32ad05d9e9027edebf36b",
+    "README.en.md": "aeeebc423b11bb2e3792faca4e8b5f7aaeed1fa44652029d791e54fc0d14878a",
+    "CHANGELOG.md": "2d66992e36a9c09ae88dc4dac8a8bfa9e3d520b10098db0364bd22983760ebd1",
+    "docs/verification/distribution-2026-11-17.md": "46884510195be91178f9b9cdba57721cddabb33e85751af5e743314b5c264bfb"
+  }
+}

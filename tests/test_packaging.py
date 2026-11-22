@@ -82,10 +82,32 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(claude_market["plugins"][0]["name"], manifest["name"])
         self.assertEqual(claude_market["plugins"][0]["source"], "./")
         self.assertEqual(claude_market["plugins"][0]["version"], manifest["version"])
-        for rel in (".codex-plugin/plugin.json", ".claude-plugin/plugin.json"):
+        for rel in (".codex-plugin/plugin.json", ".claude-plugin/plugin.json", ".antigravity-plugin/plugin.json"):
             compat = json.loads((ROOT / rel).read_text(encoding="utf-8"))
             self.assertEqual(compat["name"], manifest["name"])
             self.assertEqual(compat["version"], manifest["version"])
+            self.assertNotIn("grok", compat.get("keywords", []))
+        self.assertNotIn("grok", manifest.get("keywords", []))
+
+        release_spec = importlib.util.spec_from_file_location("parrhesia_release_builder_pkg", ROOT / "scripts" / "build-release.py")
+        release_mod = importlib.util.module_from_spec(release_spec)
+        assert release_spec.loader is not None
+        release_spec.loader.exec_module(release_mod)
+        release_mod.validate_versions(ROOT, manifest)
+
+        cli_ver = subprocess.run([sys.executable, "-m", "parrhesia", "--version"], cwd=ROOT, text=True, capture_output=True, timeout=15)
+        self.assertEqual(cli_ver.returncode, 0, cli_ver.stderr)
+        self.assertEqual(cli_ver.stdout.strip(), manifest["version"])
+
+        ci_workflow = (ROOT / ".github" / "workflows" / "policy.yml").read_text(encoding="utf-8")
+        for required_cmd in (
+            "scripts/generate-policy.py --check",
+            "scripts/check-eval-leakage.py --strict",
+            "unittest discover -s tests -v",
+            "scripts/run-stage0-eval.py --mode mechanical",
+            "scripts/build-release.py",
+        ):
+            self.assertIn(required_cmd, ci_workflow)
 
     def test_portable_expansion_launches_server_outside_checkout(self):
         with tempfile.TemporaryDirectory(prefix="parrhesia-portable-", dir=TEMP_ROOT) as directory:
@@ -95,15 +117,25 @@ class PackagingTests(unittest.TestCase):
             responses = handshake([sys.executable, *arguments], data)
             self.assertEqual([response["id"] for response in responses], [1, 2, 3])
             self.assertEqual(responses[0]["result"]["serverInfo"]["name"], "parrhesia")
+            self.assertGreaterEqual(
+                set(responses[0]["result"]["capabilities"]),
+                {"tools", "resources", "prompts"},
+            )
             tools = responses[1]["result"]["tools"]
             tool_names = {tool["name"] for tool in tools}
             legacy_tools = {"parrhesia_contract", "parrhesia_select_workspace", "parrhesia_workflow"}
             action_tools = {
+                "parrhesia_draft_manuscript",
+                "parrhesia_import_artifact",
+                "parrhesia_extract_effects",
                 "parrhesia_create_case",
                 "parrhesia_register_evidence",
                 "parrhesia_register_hypothesis",
                 "parrhesia_scaffold_claim",
                 "parrhesia_set_ledger",
+                "parrhesia_upsert_claim",
+                "parrhesia_explore",
+                "parrhesia_analyze_design",
                 "parrhesia_freeze",
                 "parrhesia_review_packet",
                 "parrhesia_submit_review",
@@ -119,7 +151,7 @@ class PackagingTests(unittest.TestCase):
                 "parrhesia_calibration_report",
             }
             expected_tools = legacy_tools | {"parrhesia_validate"} | action_tools
-            self.assertEqual(len(expected_tools), 22)
+            self.assertEqual(len(expected_tools), 28)
             self.assertTrue(legacy_tools.issubset(tool_names))
             self.assertEqual(tool_names, expected_tools)
             for tool in tools:

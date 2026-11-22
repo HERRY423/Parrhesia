@@ -25,4 +25,39 @@ jobs:
       - name: Require schema validator
         run: python -c "from jsonschema import Draft202012Validator"
       - run: python scripts/generate-policy.py --check
+      - run: python scripts/check-eval-leakage.py --strict
       - run: python -m unittest discover -s tests -v
+      - name: Run Stage 0 mechanical evaluation suite
+        shell: bash
+        run: |
+          mkdir -p "${{ runner.temp }}/parrhesia-stage0"
+          python -X utf8 scripts/run-stage0-eval.py --mode mechanical --report-out "${{ runner.temp }}/parrhesia-stage0/report.md" > "${{ runner.temp }}/parrhesia-stage0/summary.json" 2> "${{ runner.temp }}/parrhesia-stage0/stderr.log"
+      - name: Preserve Stage 0 measurements and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage0-${{ matrix.os }}
+          path: ${{ runner.temp }}/parrhesia-stage0
+      - name: Build deterministic release bundle and verify versions
+        run: python scripts/build-release.py --output "${{ runner.temp }}/parrhesia-ci-release.zip"
+
+  wheel:
+    name: Isolated wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build, install and exercise wheel outside checkout
+        run: python scripts/check-wheel.py --output "${{ runner.temp }}/parrhesia-wheel-check"
+      - name: Preserve wheel verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-check-${{ matrix.os }}
+          path: ${{ runner.temp }}/parrhesia-wheel-check

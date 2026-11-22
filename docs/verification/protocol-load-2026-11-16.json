@@ -1,0 +1,194 @@
+{
+  "date": "2026-11-16",
+  "scope": "Local source and serialized UTF-8 bytes; no host or LLM behavioral measurement",
+  "encoding": "UTF-8; compact JSON ensure_ascii=False separators=(comma,colon)",
+  "before": {
+    "encoding": "UTF-8; compact JSON ensure_ascii=False separators=(comma,colon)",
+    "tool_count": 25,
+    "tools_bytes": 137182,
+    "tools": {
+      "parrhesia_contract": 1016,
+      "parrhesia_select_workspace": 829,
+      "parrhesia_workflow": 998,
+      "parrhesia_validate": 1563,
+      "parrhesia_draft_manuscript": 46388,
+      "parrhesia_import_artifact": 1801,
+      "parrhesia_extract_effects": 3746,
+      "parrhesia_create_case": 1890,
+      "parrhesia_register_evidence": 2886,
+      "parrhesia_register_hypothesis": 1191,
+      "parrhesia_scaffold_claim": 2198,
+      "parrhesia_set_ledger": 45729,
+      "parrhesia_freeze": 939,
+      "parrhesia_review_packet": 1661,
+      "parrhesia_submit_review": 4239,
+      "parrhesia_adjudication_packet": 1439,
+      "parrhesia_submit_adjudication": 7553,
+      "parrhesia_verify": 1177,
+      "parrhesia_get_case": 1456,
+      "parrhesia_export": 1118,
+      "parrhesia_record_human_decision": 1314,
+      "parrhesia_claim_graph": 1007,
+      "parrhesia_evaluate_triggers": 1284,
+      "parrhesia_record_calibration_outcome": 2416,
+      "parrhesia_calibration_report": 1318
+    },
+    "files": {
+      "policy/parrhesia-policy.md": {
+        "bytes": 108236,
+        "lines": 774
+      },
+      "AGENTS.md": {
+        "bytes": 10121,
+        "lines": 74
+      },
+      "skills/parrhesia-review/SKILL.md": {
+        "bytes": 55543,
+        "lines": 210
+      },
+      "skills/parrhesia-l2-reference/SKILL.md": {
+        "bytes": 19764,
+        "lines": 141
+      },
+      "templates/AGENTS.parrhesia.md": {
+        "bytes": 50128,
+        "lines": 201
+      },
+      "templates/AGENTS.parrhesia.codex.md": {
+        "bytes": 9101,
+        "lines": 66
+      },
+      "templates/AGENTS.parrhesia.chatgpt.md": {
+        "bytes": 44481,
+        "lines": 195
+      }
+    }
+  },
+  "after": {
+    "tool_count": 25,
+    "tools_bytes": 70469,
+    "tools": {
+      "parrhesia_contract": 1016,
+      "parrhesia_select_workspace": 829,
+      "parrhesia_workflow": 998,
+      "parrhesia_validate": 1563,
+      "parrhesia_draft_manuscript": 2777,
+      "parrhesia_import_artifact": 1801,
+      "parrhesia_extract_effects": 3746,
+      "parrhesia_create_case": 1890,
+      "parrhesia_register_evidence": 2886,
+      "parrhesia_register_hypothesis": 1191,
+      "parrhesia_scaffold_claim": 2198,
+      "parrhesia_set_ledger": 22627,
+      "parrhesia_freeze": 939,
+      "parrhesia_review_packet": 1661,
+      "parrhesia_submit_review": 4239,
+      "parrhesia_adjudication_packet": 1439,
+      "parrhesia_submit_adjudication": 7553,
+      "parrhesia_verify": 1177,
+      "parrhesia_get_case": 1456,
+      "parrhesia_export": 1118,
+      "parrhesia_record_human_decision": 1314,
+      "parrhesia_claim_graph": 1007,
+      "parrhesia_evaluate_triggers": 1284,
+      "parrhesia_record_calibration_outcome": 2416,
+      "parrhesia_calibration_report": 1318
+    },
+    "files": {
+      "policy/parrhesia-policy.md": {
+        "bytes": 73285,
+        "lines": 636
+      },
+      "AGENTS.md": {
+        "bytes": 9687,
+        "lines": 76
+      },
+      "templates/AGENTS.parrhesia.md": {
+        "bytes": 8938,
+        "lines": 72
+      },
+      "templates/AGENTS.parrhesia.codex.md": {
+        "bytes": 8665,
+        "lines": 68
+      },
+      "templates/AGENTS.parrhesia.chatgpt.md": {
+        "bytes": 9853,
+        "lines": 80
+      },
+      "skills/parrhesia-review/SKILL.md": {
+        "bytes": 3029,
+        "lines": 29
+      },
+      "skills/parrhesia-l2-reference/SKILL.md": {
+        "bytes": 26094,
+        "lines": 123
+      },
+      "skills/parrhesia-review/references/workflow.md": {
+        "bytes": 10553,
+        "lines": 41
+      },
+      "skills/parrhesia-review/references/integrations.md": {
+        "bytes": 2260,
+        "lines": 15
+      },
+      "skills/parrhesia-review/references/basics.md": {
+        "bytes": 8650,
+        "lines": 68
+      },
+      "templates/chatgpt/01-frozen-input.md": {
+        "bytes": 3408,
+        "lines": 68
+      },
+      "templates/chatgpt/01-frozen-input-blind.md": {
+        "bytes": 3544,
+        "lines": 65
+      },
+      "templates/chatgpt/02-overclaim.md": {
+        "bytes": 3214,
+        "lines": 28
+      },
+      "templates/chatgpt/03-underclaim.md": {
+        "bytes": 3111,
+        "lines": 30
+      },
+      "templates/chatgpt/04-adjudication.md": {
+        "bytes": 3622,
+        "lines": 32
+      },
+      "templates/chatgpt/05-handoff-record.md": {
+        "bytes": 2349,
+        "lines": 44
+      }
+    }
+  },
+  "comparison": {
+    "tool_names_equal": true,
+    "all_expanded_input_schemas_equal": true,
+    "unchanged_output_schema_count": 24,
+    "changed_output_schema": "parrhesia_draft_manuscript",
+    "expanded_ledger_input_sha256": "e8a9c6cfb7274a45eb9027dbceb578e2c8ede1e9bd5ca96ac7bb94d7194d41f5"
+  },
+  "verification": {
+    "full_retest": {
+      "run": 253,
+      "passed": 252,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "failure": "test_non_git_fallback_and_lockfile_discovery_no_symlink_traversal",
+      "cause": "Temporary directory placed inside Git checkout; fixture expected non-Git directory"
+    },
+    "isolated_retest": {
+      "run": 1,
+      "passed": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "temporary_directory": "outside Git checkout"
+    },
+    "distinct_checks_with_passing_results": 253,
+    "single_full_run_all_green": false,
+    "real_model_evaluation": "NOT_RUN",
+    "native_host_reference_acceptance": "NOT_RUN"
+  }
+}

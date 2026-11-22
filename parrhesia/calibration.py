@@ -21,6 +21,7 @@ DEFAULT_OUTCOME_SCORES: dict[str, float | None] = {
     "refuted": 0.0,
     "inconclusive": None,
 }
+_BINARY_OUTCOMES = ("replicated", "refuted")
 
 DEFAULT_CONFIDENCE_PROBABILITIES: dict[str, float] = {
     "high": 0.85,
@@ -105,6 +106,16 @@ def _resolution_binding(record: dict, case: dict, cases_by_id: dict[str, dict], 
             "evidence_ids": refs, "scope": "source_identity_and_binding_only; outcome_semantics_caller_reported"}
 
 
+def _score_matches_outcome(outcome: str, score: Any) -> bool:
+    if outcome == "inconclusive":
+        return score is None
+    if type(score) not in (int, float) or not 0.0 <= score <= 1.0:
+        return False
+    if outcome == "partially_replicated":
+        return 0.0 < score < 1.0
+    return outcome in _BINARY_OUTCOMES and score == DEFAULT_OUTCOME_SCORES[outcome]
+
+
 def validate_calibration_outcome(payload: dict, case: dict, cases_by_id: dict[str, dict], evidence_by_id: dict[str, dict] | None = None) -> dict:
     """Validate an append-only post-adjudication calibration outcome payload."""
     if case.get("state") not in _CALIBRATION_STATES:
@@ -142,18 +153,10 @@ def validate_calibration_outcome(payload: dict, case: dict, cases_by_id: dict[st
         fail("placeholder_or_empty", "calibration outcome reason must be substantive")
 
     raw_score = payload.get("outcome_score")
-    if outcome == "inconclusive":
-        if raw_score is not None:
-            fail("invalid_calibration_outcome", "inconclusive outcomes must omit outcome_score or set it to null")
-        score: float | None = None
-    elif raw_score is None:
-        score = DEFAULT_OUTCOME_SCORES[outcome]
-    else:
-        if type(raw_score) is bool or not isinstance(raw_score, (int, float)) or not math.isfinite(float(raw_score)):
-            fail("invalid_calibration_outcome", "outcome_score must be a finite number in [0.0, 1.0]")
-        score = float(raw_score)
-        if score < 0.0 or score > 1.0:
-            fail("invalid_calibration_outcome", "outcome_score must be within [0.0, 1.0]")
+    score = DEFAULT_OUTCOME_SCORES[outcome] if raw_score is None else raw_score
+    if not _score_matches_outcome(outcome, score):
+        fail("invalid_calibration_outcome",
+             "outcome_score must agree with outcome: replicated=1, refuted=0, partially_replicated strictly between 0 and 1, inconclusive=null")
 
     follow_up_case_id = payload.get("follow_up_case_id")
     follow_up_claim_id = payload.get("follow_up_claim_id")
@@ -165,7 +168,7 @@ def validate_calibration_outcome(payload: dict, case: dict, cases_by_id: dict[st
     record: dict[str, Any] = {
         "claim_id": claim_id,
         "outcome": outcome,
-        "outcome_score": score,
+        "outcome_score": float(score) if score is not None else None,
         "resolution_source": resolution_source,
         "reason": reason,
         "recorded_at": _now(),
@@ -494,12 +497,19 @@ def compute_calibration_report(
             outcome: str | None = None
             outcome_score: float | None = None
             resolution_source: str | None = None
+            score_issue: str | None = None
 
             if explicit_out is not None:
                 resolution_mode = "explicit" if source_binding["status"] == "source_verified" else "reported_unverified"
                 outcome = explicit_out["outcome"]
-                outcome_score = explicit_out["outcome_score"] if source_binding["status"] == "source_verified" else None
                 resolution_source = explicit_out["resolution_source"]
+                reported_score = explicit_out.get("outcome_score")
+                if not _score_matches_outcome(outcome, reported_score):
+                    score_issue = "outcome_score_conflicts_with_label"
+                    if resolution_mode == "explicit":
+                        resolution_mode = "reported_score_conflict"
+                elif resolution_mode == "explicit":
+                    outcome_score = reported_score
             elif followups:
                 latest_fu = followups[-1]
                 outcome, outcome_score = _infer_graph_outcome(latest_fu["relation"], latest_fu["verdict"])
@@ -511,7 +521,7 @@ def compute_calibration_report(
                 lloss = _log_loss(effective_p, outcome_score)
                 combined_briers.append(brier)
                 combined_logs.append(lloss)
-                if explicit_p is not None and outcome_score in (0.0, 1.0):
+                if explicit_p is not None and outcome in _BINARY_OUTCOMES:
                     explicit_briers.append((float(explicit_p) - outcome_score) ** 2)
                     explicit_logs.append(_log_loss(float(explicit_p), outcome_score))
 
@@ -550,12 +560,13 @@ def compute_calibration_report(
                 "probability_basis": "explicit_forecast" if explicit_p is not None else "heuristic_confidence_mapping",
                 "outcome": outcome,
                 "outcome_score": outcome_score,
+                "score_issue": score_issue,
                 "trigger_count": len(claims_trigs),
                 "fired_trigger_ids": [t["id"] for t in fired_trigs],
             })
 
     resolved_scored = [r for r in claim_records if r["outcome_score"] is not None]
-    explicit_scored = [r for r in resolved_scored if r["forecast_probability"] is not None and r["outcome_score"] in (0.0, 1.0)]
+    explicit_scored = [r for r in resolved_scored if r["forecast_probability"] is not None and r["outcome"] in _BINARY_OUTCOMES]
     inconclusive_count = sum(1 for r in claim_records if r["outcome"] == "inconclusive")
 
     # 5 canonical reliability bins
@@ -667,8 +678,9 @@ def compute_calibration_report(
             "explicit_resolved_count": sum(1 for r in resolved_scored if r["resolution_mode"] == "explicit"),
             "graph_inferred_resolved_count": sum(1 for r in resolved_scored if r["resolution_mode"] == "graph_inferred"),
             "inconclusive_outcome_count": inconclusive_count,
-            "unresolved_claim_count": sum(1 for r in claim_records if r["resolution_mode"] in ("unresolved", "reported_unverified")),
+            "unresolved_claim_count": sum(1 for r in claim_records if r["resolution_mode"] in ("unresolved", "reported_unverified", "reported_score_conflict")),
             "unverified_outcome_count": sum(1 for r in claim_records if r["resolution_mode"] == "reported_unverified"),
+            "outcome_score_conflict_count": sum(1 for r in claim_records if r["score_issue"] is not None),
             "proper_score_count": len(explicit_scored),
         },
         "proper_scores": {

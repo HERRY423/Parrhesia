@@ -1,0 +1,223 @@
+{
+  "baseline_full_bytes": 68547,
+  "current_full_bytes": 67747,
+  "input_changes": [
+    "parrhesia_contract",
+    "parrhesia_draft_manuscript",
+    "parrhesia_scaffold_claim"
+  ],
+  "per_tool": {
+    "parrhesia_contract": {
+      "before": 1492,
+      "after": 1711
+    },
+    "parrhesia_select_workspace": {
+      "before": 829,
+      "after": 829
+    },
+    "parrhesia_workflow": {
+      "before": 998,
+      "after": 998
+    },
+    "parrhesia_validate": {
+      "before": 1563,
+      "after": 1563
+    },
+    "parrhesia_draft_manuscript": {
+      "before": 2777,
+      "after": 4228
+    },
+    "parrhesia_import_artifact": {
+      "before": 1801,
+      "after": 1801
+    },
+    "parrhesia_extract_effects": {
+      "before": 3746,
+      "after": 1701
+    },
+    "parrhesia_create_case": {
+      "before": 1890,
+      "after": 1890
+    },
+    "parrhesia_register_evidence": {
+      "before": 2886,
+      "after": 2886
+    },
+    "parrhesia_register_hypothesis": {
+      "before": 1191,
+      "after": 1191
+    },
+    "parrhesia_scaffold_claim": {
+      "before": 2198,
+      "after": 3289
+    },
+    "parrhesia_set_ledger": {
+      "before": 21243,
+      "after": 20335
+    },
+    "parrhesia_freeze": {
+      "before": 939,
+      "after": 939
+    },
+    "parrhesia_review_packet": {
+      "before": 1661,
+      "after": 1661
+    },
+    "parrhesia_submit_review": {
+      "before": 4061,
+      "after": 3854
+    },
+    "parrhesia_adjudication_packet": {
+      "before": 1439,
+      "after": 1439
+    },
+    "parrhesia_submit_adjudication": {
+      "before": 6717,
+      "after": 6357
+    },
+    "parrhesia_verify": {
+      "before": 1177,
+      "after": 1177
+    },
+    "parrhesia_get_case": {
+      "before": 1456,
+      "after": 1456
+    },
+    "parrhesia_export": {
+      "before": 1118,
+      "after": 1118
+    },
+    "parrhesia_record_human_decision": {
+      "before": 1314,
+      "after": 1314
+    },
+    "parrhesia_claim_graph": {
+      "before": 1007,
+      "after": 1007
+    },
+    "parrhesia_evaluate_triggers": {
+      "before": 1284,
+      "after": 1284
+    },
+    "parrhesia_record_calibration_outcome": {
+      "before": 2416,
+      "after": 2375
+    },
+    "parrhesia_calibration_report": {
+      "before": 1318,
+      "after": 1318
+    }
+  },
+  "profiles": {
+    "full": {
+      "tools": 25,
+      "bytes": 67747
+    },
+    "review": {
+      "tools": 5,
+      "bytes": 9624
+    },
+    "adjudication": {
+      "tools": 5,
+      "bytes": 11905
+    }
+  },
+  "inline_full_bytes": 94897,
+  "contract_bytes": 80283,
+  "contract_index_bytes": 3500,
+  "contract_prefill_batch_bytes": 5618,
+  "entry_skill_bytes": 3058,
+  "qualification_scope": "Frozen local verification source; no model turns; live worktree not fully qualified",
+  "full_tests": {
+    "tests": 268,
+    "failures": 5,
+    "errors": 5,
+    "seconds": 236.38,
+    "status": "FAILED_DURING_CONCURRENT_CHANGES_AND_DISK_EXHAUSTION"
+  },
+  "native": {
+    "shared": {
+      "schema_mode": "shared",
+      "tool_count": 25,
+      "calls": 24,
+      "state": "adjudicated",
+      "bridge_state": "draft",
+      "exact_schema_match": true,
+      "model_calls": 0,
+      "desktop_conversation_plugin_refreshed": false
+    },
+    "inline": {
+      "schema_mode": "inline",
+      "tool_count": 25,
+      "calls": 24,
+      "state": "adjudicated",
+      "bridge_state": "draft",
+      "exact_schema_match": true,
+      "model_calls": 0,
+      "desktop_conversation_plugin_refreshed": false
+    }
+  },
+  "native_source_hashes": {
+    "parrhesia/__init__.py": "942f4458f84ce3b0cb0553a5c03e1a2533f66aee570a4adc0fca13ba823a5b8e",
+    "parrhesia/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "parrhesia/adapters.py": "863e8d31f6cee6e108838172f53b5adedbb784d967c627b748878ed0daaf8d1f",
+    "parrhesia/artifacts.py": "002ba5b10117261eaa8c53d442ce2afa6ef8f7501c15ba8eb6663d3b6d27e0df",
+    "parrhesia/binary_artifacts.py": "4bd0274fc8f921757964a20e50b135f9d8906ca9ca702226e5e1923a499eca78",
+    "parrhesia/calibration.py": "b5a690f3a976ac04591fbf476bda63a9ff2e7814ee2f023942828df7e2f060aa",
+    "parrhesia/claim_graph.py": "e027e34d375307b76b21e74f4e1a7348ec8065bba3e4d99f8a3b7fc7d16c0374",
+    "parrhesia/claims.py": "a652471ce2b13c9f7c6d39b93fd7c10c6dd1c7cd2958634247d4095b556a6b59",
+    "parrhesia/cli.py": "1a1b2f7e8d81088a2ab6eb872c2d7f3713dcc092e5b375f483e480285c8ada70",
+    "parrhesia/contract_docs.py": "6e768bb975210ea9ab2a02e449b186af8de375b4cfe0d70fedf0eff40cc0ebd3",
+    "parrhesia/contracts.py": "baf169b3a79373aadf8a5f2ec54de363cd26f3b733966b2823251490250121d7",
+    "parrhesia/core.py": "9df494dbbb15b4a383c684a53a43543b74ffe6fc74eddafeadd4c1c4b553bdbe",
+    "parrhesia/demo.py": "b6b391b3662ff167dadaa61d4348395ff5b3a0e04babaafa62def1b6a280b002",
+    "parrhesia/effects.py": "2ac42410e27ba3966edfcadd34007d0d455d25573ef06607b640963a0206eae7",
+    "parrhesia/gates.py": "e2ee19ffef3a61c7453d3cea8eec95ccda989275595730c29dff807b834ee9aa",
+    "parrhesia/manuscript.py": "cc0fde0de20d79dbb0d0c73afe29a01d6bfcf90d614002d9e361cc253432f565",
+    "parrhesia/mcp_prompts.py": "fe867948fce3c6cabb660087d9871acf6cfd7d243e53eb9cbd8f342b65d3ae08",
+    "parrhesia/mcp_schemas.py": "5b7f6878ff7a68293dfd35c9a285bb2eb93ec335df30686ec42a313d0b0992fc",
+    "parrhesia/packets.py": "74aaceb27ac9cb6906db27b191445c4283a299c156e78bc43bfb6ee6c94875c6",
+    "parrhesia/pdf_reader.py": "e6e20aedad39b663356a6beb60760320efdd222153c2f9680872963c6122a6d7",
+    "parrhesia/policy.py": "eb0d30638866fbc6def9a9291999cdccabce4c61560c28af128f6e99d5f8c777",
+    "parrhesia/prefill.py": "d411af9d7bc1cacd72cb476e25e6c4de8737599e633616dbd01a8e3eebe5a3cc",
+    "parrhesia/provenance.py": "1555da8535fe46bd199a84d1b91f83d17baaacffdac0f579d68874ba4f2fc6e1",
+    "parrhesia/report.py": "c114b87694427b0e190cf7c2aba2e2d218c005dc5e41b64241f1c08d5bcae9a1",
+    "parrhesia/server.py": "445cffcd0fbf848ac52aecb543dd343bd227926ea9f253fad2fe4d8197dfa269",
+    "parrhesia/stat_import.py": "aa74d08188a3c10320affd2e5e8df4b01d527b2ae68804d198675fed1c21c252",
+    "parrhesia/storage.py": "d3da6d4ca139363ef5e0a61c075c2c63fac3f7e4cc5fd425f6e3a251dcbc9b95",
+    "parrhesia/symmetry_audit.py": "38a72cc657d12d3bdfed811db217b8e83bc2a167529c980417ec557ad28f87bc",
+    "parrhesia/text_anchors.py": "45107bca7c4a3d4b903346b64cab6f9f421d1b7fd82455474db70a55f568bd1f",
+    "parrhesia/triggers.py": "fbdb5c31bea3b125e183d498e42895f5aa064cd67ebbccfdaf5cd3f2eda8c74a",
+    "scripts/run-mcp.py": "e376a5b929ed93d66bc33f952fdfbcff60c8d670a386fbc64706931650f1d32a",
+    "docs/contract.md": "2a2855f24c3239bcfe820c4e5aed8cc4e52b22839f929f27b2e3679b39bc2cc5"
+  },
+  "frozen_source_drift": [],
+  "live_source_drift": [],
+  "focused_tests": {
+    "prefill": {
+      "tests": 7,
+      "seconds": 0.886,
+      "passed": true
+    },
+    "schema": {
+      "tests": 6,
+      "seconds": 1.421,
+      "passed": true
+    },
+    "contract": {
+      "tests": 4,
+      "seconds": 0.545,
+      "passed": true
+    },
+    "artifact": {
+      "tests": 26,
+      "seconds": 1.758,
+      "passed": true
+    },
+    "server": {
+      "tests": 9,
+      "seconds": 17.616,
+      "passed": true
+    }
+  }
+}

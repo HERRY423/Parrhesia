@@ -16,6 +16,7 @@ from parrhesia.adapters import (  # noqa: E402
     END,
     POLICY_MODES,
     SKILL_NAMES,
+    skill_layout_errors,
     check_owned_files,
     collect_runtime_payloads,
     collect_skills_payloads,
@@ -219,6 +220,7 @@ def check(source: Path, project: Path) -> dict:
 
     expected_payloads = collect_package(source)
     errors, drift = check_owned_files(project, old_files, expected_payloads)
+    errors.extend(skill_layout_errors(project, ".grok/skills"))
 
     source_version = read_plugin_version(source)
     if old.get("plugin_version") != source_version:

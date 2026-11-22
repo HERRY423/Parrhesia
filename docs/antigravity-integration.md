@@ -43,7 +43,7 @@ python scripts/install-antigravity.py --scope user --target C:\CustomAntigravity
 | `.agents/plugins/parrhesia/skills/parrhesia-review/SKILL.md` | L2 工作流与工具契约操作技能（按需加载） |
 | `.agents/plugins/parrhesia/skills/parrhesia-l2-reference/SKILL.md` | 完整 L2 九大设计包、八项统计报告、四类溯源卡与校准锚点参考（仅 L2 / 深度查阅按需加载） |
 | `.agents/plugins/parrhesia/hooks.json` | 只读 `SessionStart` 生命周期配置（可用 `--no-hooks` 禁用）；Windows 上采用 `call` 引号安全包裹，避免带空格路径在 `cmd /c` 下被去引号 |
-| `.agents/plugins/parrhesia/hooks/parrhesia_hook.py` | 纯 stdlib 只读 SQLite（`?mode=ro`）状态检测；若工作区不存在 `.parrhesia/state.sqlite3` 或案例数为 0，静默返回 `{}`，不给 L0/普通对话增加噪声 |
+| `.agents/plugins/parrhesia/hooks/parrhesia_hook.py` | 纯 stdlib 只读 SQLite（`?mode=ro`）状态检测；按 `events` 序列定位最近活跃案例并引导读取 `parrhesia://cases/{case_id}` / `parrhesia_get_case` / `parrhesia_verify`；若无 `.parrhesia/state.sqlite3` 或案例数为 0，静默返回 `{}` |
 | `.agents/parrhesia/runtime/` | 自含 `parrhesia/*.py`、`scripts/run-mcp.py`、`plugin.json`、`mcp.json` 与 `docs/contract.md`，移动或删除原仓库不影响已安装项目 |
 | `.agents/parrhesia/installation.json` / `backups/` | SHA-256 所有权清单与带时间戳备份；更新、切换选项或卸载前先核验摘要，检测到未托管冲突或手工篡改即拒绝写入 |
 
@@ -58,7 +58,7 @@ python scripts/install-antigravity.py --scope user --target C:\CustomAntigravity
 
 ## Antigravity 隔离双审与执行溯源映射
 
-在 Antigravity 宿主中运行 Parrhesia 时，按以下宿主原语对齐 `0.2.0` 契约：
+在 Antigravity 宿主中运行 Parrhesia 时，按以下宿主原语对齐最新 `0.4.0` 契约（Claim Schema v2、25 个强类型与兼容 MCP 工具及只读资源）：
 
 1. **规则分流**：日常 L0/L1/L1-Explore 仅依赖精简 `rules/parrhesia.md`；仅在进入 `L2` 或核对完整设计/统计清单时读取 `parrhesia-l2-reference`。
 2. **审查者上下文隔离**：在 `L2` 阶段分派夸大审查与低估审查子代理时，使用 `invoke_subagent`（默认新对话，不继承起草聊天）或 `swarm` 的 `add`（**不传 `fork`**），并**仅**提交对应角色的 `review_packet` 与已授权阅读的证据正文；在反馈和 `input_manifest` 中如实记录 `inherited_history: false`、实际 `memory_read` 状态、`packet_id`、`input_digest`、`blind`、`evidence_ids` 与 `unread_evidence_ids`。

@@ -1,4 +1,4 @@
-"""Synchronize Codex AGENTS.md (compact block) and parrhesia-l2-reference skill from generated Parrhesia v0.2.0 targets."""
+"""Synchronize the Codex policy block and both complete layered skill directories."""
 
 from __future__ import annotations
 
@@ -10,6 +10,10 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from parrhesia.adapters import (collect_skills_payloads, commit_transaction, contained,
+                                check_owned_files, reject_link, sha256_bytes)
 START_MARKER = "<!-- parrhesia:judgment-policy:start -->"
 END_MARKER = "<!-- parrhesia:judgment-policy:end -->"
 SKILL_REL_PATH = Path("skills") / "parrhesia-l2-reference" / "SKILL.md"
@@ -59,16 +63,6 @@ def load_codex_block(source: Path) -> str:
     return raw[start : end + len(END_MARKER)]
 
 
-def load_l2_reference_skill(source: Path) -> str:
-    skill_path = source / SKILL_REL_PATH
-    if not skill_path.is_file():
-        raise ValueError(f"Missing generated skill: {skill_path}")
-    raw = skill_path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
-    if not raw.endswith("\n"):
-        raw += "\n"
-    return raw
-
-
 def transform_agents_text(original: str, codex_block: str) -> str:
     updated = original.replace("\r\n", "\n").replace("\r", "\n")
     for old_text, new_text in LEGACY_REPLACEMENTS:
@@ -88,81 +82,60 @@ def transform_agents_text(original: str, codex_block: str) -> str:
 
 
 def sync_codex_agents(codex_home: Path, source: Path = ROOT, *, check_only: bool = False) -> dict:
+    reject_link(codex_home)
     source = source.resolve()
     codex_home = codex_home.resolve()
     if not codex_home.is_dir():
         raise ValueError(f"Codex home directory does not exist: {codex_home}")
-    agents_path = codex_home / "AGENTS.md"
-    skill_target_path = codex_home / SKILL_REL_PATH
+    agents_path = contained(codex_home, "AGENTS.md")
+    metadata_path = contained(codex_home, ".parrhesia-codex-sync.json")
     codex_block = load_codex_block(source)
-    expected_skill = load_l2_reference_skill(source)
+    # Preflight the whole layered bundle before modifying any target.
+    payloads = collect_skills_payloads(source, "skills")
+    payloads = {name: data.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+                if name.endswith(".md") else data for name, data in payloads.items()}
     original = agents_path.read_text(encoding="utf-8-sig") if agents_path.exists() else ""
     expected = transform_agents_text(original, codex_block)
     for snippet in FORBIDDEN_LEGACY_SNIPPETS:
         if snippet in expected:
             raise ValueError(f"Legacy v0.1.0 snippet remained after transformation: {snippet}")
-    normalized_original = original.replace("\r\n", "\n").replace("\r", "\n")
-    agents_in_sync = agents_path.exists() and normalized_original == expected
-
-    original_skill = skill_target_path.read_text(encoding="utf-8-sig") if skill_target_path.exists() else ""
-    normalized_skill = original_skill.replace("\r\n", "\n").replace("\r", "\n")
-    skill_in_sync = skill_target_path.exists() and normalized_skill == expected_skill
-    in_sync = agents_in_sync and skill_in_sync
-
-    if check_only:
-        if not agents_in_sync:
-            raise ValueError(f"{agents_path} is out of sync with templates/AGENTS.parrhesia.codex.md")
-        if not skill_in_sync:
-            raise ValueError(f"{skill_target_path} is out of sync with {SKILL_REL_PATH.as_posix()}")
-        return {
-            "status": "in_sync",
-            "agents_path": str(agents_path),
-            "agents_sha256": sha256_text(expected),
-            "block_sha256": sha256_text(codex_block),
-            "l2_reference_skill_path": str(skill_target_path),
-            "l2_reference_skill_sha256": sha256_text(expected_skill),
-        }
-    backup_path = None
-    skill_backup_path = None
-    backup_dir = codex_home / ".parrhesia-backups"
-    if agents_path.exists() and not agents_in_sync:
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        orig_hash = sha256_text(normalized_original)[:12]
-        backup_file = backup_dir / f"AGENTS.{orig_hash}.bak.md"
-        if not backup_file.exists():
-            backup_file.write_text(normalized_original, encoding="utf-8", newline="\n")
-        backup_path = str(backup_file)
-    if skill_target_path.exists() and not skill_in_sync:
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        skill_hash = sha256_text(normalized_skill)[:12]
-        skill_backup_file = backup_dir / f"parrhesia-l2-reference.SKILL.{skill_hash}.bak.md"
-        if not skill_backup_file.exists():
-            skill_backup_file.write_text(normalized_skill, encoding="utf-8", newline="\n")
-        skill_backup_path = str(skill_backup_file)
-    agents_path.write_text(expected, encoding="utf-8", newline="\n")
-    skill_target_path.parent.mkdir(parents=True, exist_ok=True)
-    skill_target_path.write_text(expected_skill, encoding="utf-8", newline="\n")
-    metadata = {
-        "owner": "parrhesia-codex-sync-v2",
-        "agents_path": str(agents_path),
-        "agents_sha256": sha256_text(expected),
+    payloads["AGENTS.md"] = expected.encode("utf-8")
+    files = {name: sha256_bytes(data) for name, data in sorted(payloads.items())}
+    errors, _ = check_owned_files(codex_home, files)
+    in_sync = not errors
+    common = {
+        "agents_path": str(agents_path), "agents_sha256": files["AGENTS.md"],
         "block_sha256": sha256_text(codex_block),
-        "l2_reference_skill_path": str(skill_target_path),
-        "l2_reference_skill_sha256": sha256_text(expected_skill),
-        "backup_path": backup_path,
-        "skill_backup_path": skill_backup_path,
-        "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "l2_reference_skill_path": str(codex_home / SKILL_REL_PATH),
+        "l2_reference_skill_sha256": files[SKILL_REL_PATH.as_posix()],
+        "review_skill_path": str(codex_home / "skills/parrhesia-review/SKILL.md"),
+        "files": files,
     }
-    meta_path = codex_home / ".parrhesia-codex-sync.json"
-    meta_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-    return {"status": "unchanged" if in_sync else "updated", **metadata}
+    if check_only:
+        if errors:
+            raise ValueError("Codex installation is out of sync: " + "; ".join(errors))
+        return {"status": "in_sync", **common}
+    old = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.is_file() else {}
+    if in_sync and old.get("owner") == "parrhesia-codex-sync-v3" and old.get("files") == files:
+        return {"status": "unchanged", **old, "backup_path": None, "skill_backup_path": None, "backup_directory": None}
+    metadata = {"owner": "parrhesia-codex-sync-v3", **common,
+                "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    payloads[".parrhesia-codex-sync.json"] = (json.dumps(metadata, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    changed, _, backup = commit_transaction(codex_home, payloads, ".parrhesia-backups")
+    backup_root = codex_home / backup if backup else None
+    backup_path = backup_root / "AGENTS.md" if backup_root else None
+    skill_backup = backup_root / SKILL_REL_PATH if backup_root else None
+    return {"status": "updated", **metadata, "changed_files": changed,
+            "backup_directory": str(backup_root) if backup_root else None,
+            "backup_path": str(backup_path) if backup_path and backup_path.is_file() else None,
+            "skill_backup_path": str(skill_backup) if skill_backup and skill_backup.is_file() else None}
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Synchronize Codex AGENTS.md (compact block) and parrhesia-l2-reference skill.")
+    parser = argparse.ArgumentParser(description="Synchronize Codex policy and both complete layered skills.")
     parser.add_argument("--codex-home", type=Path, default=Path.home() / ".codex", help="Directory containing Codex AGENTS.md and skills/")
     parser.add_argument("--source", type=Path, default=ROOT, help="Parrhesia repository root")
-    parser.add_argument("--check", action="store_true", help="Check whether Codex AGENTS.md and parrhesia-l2-reference skill are in sync")
+    parser.add_argument("--check", action="store_true", help="Read-only check of Codex policy, both skills and every reference file")
     args = parser.parse_args(argv)
     try:
         result = sync_codex_agents(args.codex_home, args.source, check_only=args.check)

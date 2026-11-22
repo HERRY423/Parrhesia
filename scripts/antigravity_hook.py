@@ -75,9 +75,20 @@ def _inspect_workspace_cases(workspace: Path) -> tuple[int, dict[str, Any] | Non
         total = int(conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0])
         if total <= 0:
             return 0, None
-        latest_row = conn.execute(
-            "SELECT id, document FROM cases ORDER BY rowid DESC LIMIT 1"
+        latest_row = None
+        events_table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='events'"
         ).fetchone()
+        if events_table is not None:
+            latest_row = conn.execute(
+                "SELECT c.id, c.document FROM events e "
+                "JOIN cases c ON c.id = e.case_id "
+                "ORDER BY e.sequence DESC, e.rowid DESC LIMIT 1"
+            ).fetchone()
+        if latest_row is None:
+            latest_row = conn.execute(
+                "SELECT id, document FROM cases ORDER BY rowid DESC LIMIT 1"
+            ).fetchone()
     except sqlite3.Error:
         return 0, None
     finally:
@@ -114,8 +125,9 @@ def handle_event(event: str, payload: dict[str, Any], *, workspace_arg: str | No
     blind_note = f", blind={latest['blind']}" if isinstance(latest.get("blind"), bool) else ""
     message = (
         f"Parrhesia workspace status: {total} case(s) in .parrhesia/state.sqlite3 "
-        f"(latest: {latest['case_id']}, state={latest['state']}, claims={latest['claims_count']}{blind_note}). "
-        "Review gate status and provenance cards via MCP parrhesia_workflow before finalizing L2 verdicts."
+        f"(active: {latest['case_id']}, state={latest['state']}, claims={latest['claims_count']}{blind_note}). "
+        f"Inspect read-only resource parrhesia://cases/{latest['case_id']} or call MCP "
+        "parrhesia_get_case / parrhesia_verify before finalizing L2 verdicts."
     )
     return {
         "injectSteps": [

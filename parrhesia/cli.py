@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 import math
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -30,10 +31,11 @@ def _allocate_default_log_file(engine) -> Path:
 
 
 def _record_exec(args: argparse.Namespace) -> dict:
+    from .artifacts import ARTIFACT_FORMATS, inspect_artifact, restrict_kind
     from .claims import EXECUTION_FORK_ROLES
     from .contracts import ContractError, enum, fail, ids, string
     from .core import Engine
-    from .gates import meaningful
+    from .gates import evidence_lineage, meaningful
     from .provenance import (
         DEFAULT_STDOUT_EXCERPT_CHARS,
         collect_environment_markers,
@@ -78,9 +80,48 @@ def _record_exec(args: argparse.Namespace) -> dict:
     explicit_outputs = string(args.outputs, "outputs") if args.outputs is not None else None
 
     engine = Engine(args.workspace)
+    effective_kind = restrict_kind("unknown", getattr(args, "kind", "auto"))
+    if args.case_id:
+        existing_case = engine.dispatch("get_case", {"case_id": args.case_id})
+        if existing_case["state"] != "draft":
+            fail("invalid_state", "record-exec requires a draft case; command was not started")
+        if "pause" in engine._human_holds(existing_case):
+            fail("human_paused", "Case is paused; command was not started")
+        known = {e["evidence_id"]: e for e in existing_case["evidence"]}
+        for parent_id in derived_from:
+            if parent_id not in known:
+                fail("unknown_evidence", "--derived-from references unknown evidence; command was not started")
+            lineage = evidence_lineage(parent_id, known)
+            if lineage["cycle_detected"] or lineage["unknown_parents"]:
+                fail("invalid_lineage", "Parent lineage is incomplete or cyclic; command was not started")
+            ancestors = [known[eid] for eid in [parent_id, *lineage["ancestors"]]]
+            if any(parent.get("kind") == "synthetic" or parent.get("provenance") == "synthetic" for parent in ancestors):
+                effective_kind = restrict_kind("synthetic", getattr(args, "kind", "auto"))
+
+    def parse_artifact_options(values):
+        entries = []
+        for value in values or []:
+            format, sep, path = value.partition("=")
+            if not sep or not path:
+                fail("invalid_value", "Artifact option must be FORMAT=workspace-relative-path")
+            enum(format, ARTIFACT_FORMATS, "artifact_format")
+            engine._path(path)
+            if path in [p for _, p in entries]:
+                fail("duplicate_id", "Artifact paths must be unique")
+            entries.append((format, path))
+        return entries
+
+    artifact_options = parse_artifact_options(getattr(args, "artifact", []))
+    metadata_options = parse_artifact_options(getattr(args, "metadata_file", []))
+    metadata = [inspect_artifact(engine._read_source(engine._path(path)), path, format) for format, path in metadata_options]
+    if any(item["kind"] == "synthetic" for item in metadata):
+        effective_kind = restrict_kind("synthetic", getattr(args, "kind", "auto"))
     requested_log_file = engine._path(args.log_path) if args.log_path else None
-    input_snapshots = validate_input_files(engine.workspace, list(getattr(args, "input_file", None) or []))
-    output_pre_snapshots = snapshot_output_files_pre(engine.workspace, list(getattr(args, "output_file", None) or []))
+    input_snapshots = validate_input_files(engine.workspace, [*list(getattr(args, "input_file", None) or []), *(path for _, path in metadata_options)])
+    measured_inputs = {item["path"]: item["sha256"] for item in input_snapshots}
+    if any(measured_inputs.get(engine._path(item["path"]).relative_to(engine.workspace).as_posix()) != item["sha256"] for item in metadata):
+        fail("source_changed", "Metadata changed before input hashing; command was not started")
+    output_pre_snapshots = snapshot_output_files_pre(engine.workspace, [*list(getattr(args, "output_file", None) or []), *(path for _, path in artifact_options)])
     git_state = collect_git_state(engine.workspace)
     lockfiles = discover_lockfiles(engine.workspace)
     env_markers = collect_environment_markers()
@@ -127,6 +168,12 @@ def _record_exec(args: argparse.Namespace) -> dict:
                                      "error": getattr(exc, "code", type(exc).__name__)})
     missing_outputs = [item["path"] for item in output_snapshots if item["status"] == "missing"]
     unverified_outputs = [item["path"] for item in output_snapshots if item["status"] == "unverified"]
+    artifacts, artifact_errors = [], []
+    for format, path in artifact_options:
+        try:
+            artifacts.append(inspect_artifact(engine._read_source(engine._path(path)), path, format))
+        except (ContractError, OSError) as exc:
+            artifact_errors.append({"path": path, "error": getattr(exc, "code", type(exc).__name__), "message": str(exc)})
     stdout_text = stdout_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     stderr_text = stderr_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     stream_digests = compute_stream_provenance(
@@ -213,6 +260,10 @@ def _record_exec(args: argparse.Namespace) -> dict:
             "log_sha256": log_sha256,
             "log_bytes": log_bytes,
         },
+        "artifacts": artifacts,
+        "artifact_errors": artifact_errors,
+        "metadata_artifacts": metadata,
+        "kind_inference": {"kind": effective_kind, "basis": "execution_log_not_study_design; metadata_can_restrict_to_synthetic"},
     }
 
     evidence = None
@@ -221,8 +272,8 @@ def _record_exec(args: argparse.Namespace) -> dict:
             "case_id": args.case_id,
             "path": rel_log_path,
             "label": args.label,
-            "provenance": "observed",
-            "kind": args.kind,
+            "provenance": "synthetic" if effective_kind == "synthetic" else "observed",
+            "kind": effective_kind,
             "location": f"{rel_log_path}:{header_range}",
             "quote": header_quote,
         }
@@ -310,7 +361,33 @@ def _record_exec(args: argparse.Namespace) -> dict:
         result["derivation_step"] = derivation_step
     if evidence is not None:
         result["evidence"] = evidence
+        result["artifact_imports"] = []
+        result["artifact_import_errors"] = []
+        for artifact in artifacts:
+            payload = {"case_id": args.case_id, "path": artifact["path"], "artifact_format": artifact["format"]}
+            matching_output = next((o for o in output_snapshots if o["path"] == artifact["path"]), {})
+            if status == "checked" and matching_output.get("status") in ("created", "modified"):
+                payload["execution_evidence_id"] = evidence["evidence_id"]
+            else:
+                payload.update(derived_from_evidence_ids=[evidence["evidence_id"]], derivation_step="Artifact observed after an attempt; fresh successful production is not established")
+            try:
+                result["artifact_imports"].append(engine.dispatch("import_artifact", payload))
+            except (ContractError, OSError) as exc:
+                result["artifact_import_errors"].append({"path": artifact["path"], "error": getattr(exc, "code", type(exc).__name__), "message": str(exc)})
     return result
+
+
+def _split_cli_cmd(raw: str) -> list[str]:
+    """Parse a shell-like command string safely on both Windows and POSIX."""
+    tokens = shlex.split(raw, posix=(os.name != "nt"))
+    if os.name == "nt":
+        cleaned = []
+        for tok in tokens:
+            if len(tok) >= 2 and ((tok[0] == '"' and tok[-1] == '"') or (tok[0] == "'" and tok[-1] == "'")):
+                tok = tok[1:-1]
+            cleaned.append(tok)
+        tokens = cleaned
+    return tokens
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -319,11 +396,65 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     service = commands.add_parser("serve", help="Run the MCP stdio server")
     service.add_argument("--workspace", type=Path, required=True)
+    service.add_argument("--schema-mode", choices=("shared", "inline"), default="shared")
+    service.add_argument("--tool-profile", choices=("full", "review", "adjudication", "explore", "compact"), default="full")
+    iso = commands.add_parser("isolate-packet", help="Export an isolated role packet with packet_nonce, packet_sha256, and runner receipt template")
+    iso.add_argument("--workspace", type=Path, required=True)
+    iso.add_argument("--case-id", required=True)
+    iso.add_argument("--role", choices=("overclaim", "underclaim", "adjudication"), required=True)
+    iso.add_argument("--stage", choices=("full", "evidence_only"), default="full", help="Review packet stage ('evidence_only' strips author claims for Stage 1 estimate-first lock)")
+    iso.add_argument("--runner", default="parrhesia-cli-isolate")
+    iso.add_argument("--output", default=None, help="Optional new workspace-relative .json path to write the exported packet bundle")
+    run_iso = commands.add_parser("run-isolated", help="Execute a reviewer/adjudicator command in an OS-isolated sandbox with scrubbed env and HMAC-sealed isolation_receipt")
+    run_iso.add_argument("--workspace", type=Path, required=True)
+    run_iso.add_argument("--case-id", required=True)
+    run_iso.add_argument("--role", choices=("overclaim", "underclaim", "adjudication"), required=True)
+    run_iso.add_argument("--runner", default="parrhesia-subprocess-runner")
+    run_iso.add_argument("--model-route", default=None)
+    run_iso.add_argument("--timeout", type=float, default=120.0)
+    run_iso.add_argument("--allow-env", action="append", default=[], help="Additional parent env var name allowed into the isolated child (repeatable)")
+    run_iso.add_argument("--two-stage-blind", action="store_true", help="Run Stage 1 evidence_only commit before Stage 2 full reveal in separate sandboxes")
+    run_iso.add_argument("--sandbox-mode", choices=("standard", "strict_os"), default="standard", help="Subprocess sandbox mode ('strict_os' requires bwrap/sandbox-exec)")
+    run_iso.add_argument("--offline-env", action="store_true", help="Inject fail-closed loopback proxy and offline library environment variables")
+    run_iso.add_argument("--auto-submit", action="store_true", help="Automatically submit the sealed child JSON payload into the case")
+    run_iso.add_argument("--keep-sandbox", action="store_true", help="Keep the ephemeral isolated sandbox directory after completion for inspection")
+    run_iso.add_argument("cmd", nargs=argparse.REMAINDER)
+    dual = commands.add_parser("run-dual-review", help="Execute parallel OS-isolated overclaim and underclaim reviewers (and optional adjudication)")
+    dual.add_argument("--workspace", type=Path, required=True)
+    dual.add_argument("--case-id", required=True)
+    dual.add_argument("--runner", default="parrhesia-dual-subprocess-runner")
+    dual.add_argument("--overclaim-cmd", default=None, help="Explicit command string for overclaim role (falls back to trailing cmd)")
+    dual.add_argument("--underclaim-cmd", default=None, help="Explicit command string for underclaim role (falls back to trailing cmd)")
+    dual.add_argument("--adjudicator-cmd", default=None, help="Optional explicit command string for isolated adjudication step")
+    dual.add_argument("--run-adjudication", action="store_true", help="Also run isolated adjudication using --adjudicator-cmd or trailing cmd")
+    dual.add_argument("--overclaim-model-route", default=None)
+    dual.add_argument("--underclaim-model-route", default=None)
+    dual.add_argument("--adjudicator-model-route", default=None)
+    dual.add_argument("--timeout", type=float, default=120.0)
+    dual.add_argument("--allow-env", action="append", default=[], help="Additional parent env var name allowed into isolated children (repeatable)")
+    dual.add_argument("--two-stage-blind", action="store_true", help="Run Stage 1 evidence_only commit before Stage 2 full reveal for both reviewers")
+    dual.add_argument("--sandbox-mode", choices=("standard", "strict_os"), default="standard", help="Subprocess sandbox mode ('strict_os' requires bwrap/sandbox-exec)")
+    dual.add_argument("--offline-env", action="store_true", help="Inject fail-closed loopback proxy and offline library environment variables")
+    dual.add_argument("--auto-export", action="store_true", help="Verify and atomically export Markdown report after isolated adjudication succeeds")
+    dual.add_argument("--keep-sandbox", action="store_true", help="Keep ephemeral sandbox directories after completion for inspection")
+    dual.add_argument("cmd", nargs=argparse.REMAINDER)
+    syn_cmd = commands.add_parser("synthesize", help="Compute read-only cross-case Living Evidence Synthesis (and optional offline HTML with SVG forest plot)")
+    syn_cmd.add_argument("--workspace", type=Path, required=True)
+    syn_cmd.add_argument("--case-id", default=None)
+    syn_cmd.add_argument("--claim-id", default=None)
+    syn_cmd.add_argument("--metric", default=None)
+    syn_cmd.add_argument("--alpha", type=float, default=0.05)
+    syn_cmd.add_argument("--ci-level", type=float, default=0.95)
+    syn_cmd.add_argument("--output", default=None, help="Optional new workspace-relative .html path; existing files are never overwritten")
     call = commands.add_parser("call", help="Run one action, loading payload from a UTF-8 JSON file or stdin")
     call.add_argument("action")
     call.add_argument("--workspace", type=Path, required=True)
     call.add_argument("--input", type=Path)
     commands.add_parser("contract", help="Print the workflow contract")
+    report = commands.add_parser("report", help="Render an existing adjudicated case to offline HTML without changing it")
+    report.add_argument("--workspace", type=Path, required=True)
+    report.add_argument("--case-id", required=True)
+    report.add_argument("--output", required=True, help="New workspace-relative .html path; existing files are never overwritten")
     demo = commands.add_parser("demo", help="Create an isolated, explicitly synthetic end-to-end demonstration")
     demo.add_argument("--output", type=Path, required=True)
     rec = commands.add_parser("record-exec", help="Execute a command, capture log evidence, and emit an execution card")
@@ -334,7 +465,9 @@ def main(argv: list[str] | None = None) -> int:
     rec.add_argument("--fork-role")
     rec.add_argument("--evidence-id", default="ev-exec-1")
     rec.add_argument("--card-id", default="exec-1")
-    rec.add_argument("--kind", default="benchmark")
+    rec.add_argument("--kind", default="auto", help="auto/unknown/synthetic; self-report cannot promote an execution log to scientific evidence")
+    rec.add_argument("--artifact", action="append", default=[], help="Expected artifact FORMAT=relative-path; inspect after execution and register with its output binding (repeatable)")
+    rec.add_argument("--metadata-file", action="append", default=[], help="Existing metadata artifact FORMAT=relative-path; inspect and hash before execution (repeatable)")
     rec.add_argument("--label", default="Recorded command execution log")
     rec.add_argument("--code-version", default=None, help="Explicit code version override (default: synthesized from git/lockfile provenance)")
     rec.add_argument("--inputs", default=None, help="Explicit inputs summary override (default: synthesized from declared --input-file and lockfile hashes)")
@@ -351,7 +484,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "serve":
             from .server import serve
-            return serve(args.workspace)
+            return serve(args.workspace, schema_mode=args.schema_mode, tool_profile=args.tool_profile)
         if args.command == "contract":
             from .server import contract_text
             sys.stdout.buffer.write(contract_text().encode("utf-8"))
@@ -359,8 +492,121 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "demo":
             from .demo import run_demo
             result = run_demo(args.output)
+        elif args.command == "report":
+            from .report import render_case_report
+            result = render_case_report(args.workspace, args.case_id, args.output)
         elif args.command == "record-exec":
             result = _record_exec(args)
+        elif args.command == "isolate-packet":
+            from .core import Engine
+            from .isolation import packet_content_sha256
+            engine = Engine(args.workspace)
+            pkt = engine.get_packet(args.case_id, args.role, stage=args.stage)
+            pkt_sha = packet_content_sha256(pkt)
+            expected_profile = "adjudication" if args.role == "adjudication" else "review"
+            result = {
+                "case_id": args.case_id,
+                "role": args.role,
+                "stage": args.stage,
+                "packet": pkt,
+                "packet_sha256": pkt_sha,
+                "recommended_mcp_args": ["--workspace", str(args.workspace.resolve()), "--tool-profile", expected_profile],
+                "isolation_receipt_template": {
+                    "runner": args.runner,
+                    "packet_nonce": pkt.get("packet_nonce"),
+                    "packet_sha256": pkt_sha,
+                    "parent_history_messages": 0,
+                    "memory_enabled": False,
+                    "tool_profile": expected_profile,
+                },
+            }
+            if args.output:
+                out_path = engine._path(args.output)
+                if out_path.exists():
+                    raise ValueError(f"Output path already exists and will not be overwritten: {args.output}")
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+                result["written_path"] = str(out_path)
+        elif args.command == "run-isolated":
+            from .isolated_runner import run_isolated_subprocess
+            cmd = list(args.cmd or [])
+            if cmd and cmd[0] == "--":
+                cmd = cmd[1:]
+            result = run_isolated_subprocess(
+                args.workspace,
+                args.case_id,
+                args.role,
+                cmd,
+                runner_name=args.runner,
+                model_route=args.model_route,
+                timeout=args.timeout,
+                allow_env=args.allow_env,
+                auto_submit=args.auto_submit,
+                keep_sandbox=args.keep_sandbox,
+                two_stage_blind=args.two_stage_blind,
+                sandbox_mode=args.sandbox_mode,
+                offline_env=args.offline_env,
+            )
+            sys.stdout.buffer.write((json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8"))
+            term = result.get("termination_status")
+            if term == "timed_out":
+                return 124
+            if term == "start_failed":
+                return 127
+            if term != "completed" or (args.auto_submit and not result.get("submitted")):
+                return 1
+            return 0
+        elif args.command == "run-dual-review":
+            from .isolated_runner import run_isolated_dual_review
+            default_cmd = list(args.cmd or [])
+            if default_cmd and default_cmd[0] == "--":
+                default_cmd = default_cmd[1:]
+            over_cmd = _split_cli_cmd(args.overclaim_cmd) if args.overclaim_cmd else default_cmd
+            under_cmd = _split_cli_cmd(args.underclaim_cmd) if args.underclaim_cmd else default_cmd
+            adj_cmd = _split_cli_cmd(args.adjudicator_cmd) if args.adjudicator_cmd else (default_cmd if args.run_adjudication else None)
+            result = run_isolated_dual_review(
+                args.workspace,
+                args.case_id,
+                overclaim_cmd=over_cmd,
+                underclaim_cmd=under_cmd,
+                adjudicator_cmd=adj_cmd,
+                runner_name=args.runner,
+                overclaim_model_route=args.overclaim_model_route,
+                underclaim_model_route=args.underclaim_model_route,
+                adjudicator_model_route=args.adjudicator_model_route,
+                timeout=args.timeout,
+                allow_env=args.allow_env,
+                auto_export=args.auto_export,
+                keep_sandbox=args.keep_sandbox,
+                two_stage_blind=args.two_stage_blind,
+                sandbox_mode=args.sandbox_mode,
+                offline_env=args.offline_env,
+            )
+            sys.stdout.buffer.write((json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8"))
+            status = result.get("status")
+            if status in ("ready_for_adjudication", "adjudicated", "exported", "review_blocked_needs_split"):
+                return 0
+            role_terms = [
+                (result.get("reviews") or {}).get("overclaim", {}).get("termination_status"),
+                (result.get("reviews") or {}).get("underclaim", {}).get("termination_status"),
+                (result.get("adjudication") or {}).get("termination_status"),
+            ]
+            if "timed_out" in role_terms:
+                return 124
+            if "start_failed" in role_terms:
+                return 127
+            return 1
+        elif args.command == "synthesize":
+            from .report import render_synthesis_report
+            result = render_synthesis_report(
+                args.workspace,
+                args.output,
+                case_id=args.case_id,
+                claim_id=args.claim_id,
+                metric=args.metric,
+                alpha=args.alpha,
+                ci_level=args.ci_level,
+            )
         else:
             from .core import Engine
             raw = args.input.read_text(encoding="utf-8-sig") if args.input else sys.stdin.buffer.read().decode("utf-8-sig")

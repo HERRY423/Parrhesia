@@ -110,11 +110,11 @@ Parrhesia 面向需要评价证据、解释结果、比较方案并形成结论�
 
 ## 上下文隔离与提示注入边界
 
-冻结后由内核生成两个角色包，再交给两个新上下文。新案例默认 `blind=true`，两侧一致并在案例级冻结；盲审包保留同版台账、证据和角色规则，移除 draft、best_current_explanation 与 discriminating_test，不允许 review_packet 单次覆盖。显式非盲模式保留初稿。包不附其他审查意见，待评主张与材料仍可能包含叙事倾向；字段过滤不是宿主上下文隔离认证，也不证明完全盲法。
+冻结后由内核生成两个角色包，再交给两个新上下文。新案例默认 `blind=true`，两侧一致并在案例级冻结；盲审包保留同版台账、证据和角色规则，移除 `draft`、`best_current_explanation` 与 `discriminating_test`，不允许 `review_packet` 单次覆盖 `blind`。需要真正隔离作者叙事锚定时，可用 `review_packet(..., stage="evidence_only")` 或 CLI `run-isolated` / `run-dual-review --two-stage-blind` 执行两阶段“先估后看”：阶段一仅分发 `evidence_first_dossier` 与原始证据（剥离 `question`、`draft`、作者主张文、`hypotheses` 及 `claim_direction`）锁定 `stage1_locked_estimates` 与 `stage1_estimate_sha256`；阶段二在全新沙箱再揭示完整盲审包。显式非盲模式保留初稿。待评材料仍可能包含叙事倾向；字段过滤本身不是宿主上下文隔离认证，也不证明完全盲法。
 
 同一个对话中连续写“现在你是另一个审查者”，不构成独立上下文。同模型两个新调用可以隔离会话信息，但仍有相同训练偏差；异模型也不自动构成独立证据。
 
-本地包的字段筛选和冻结是工程保证；宿主是否实际创建干净上下文、模型是否偷带先前信息，目前不能由本内核证明。角色提交的“我已隔离”声明只记为声明。不能做到时仍可执行有用的审查，但必须标为隔离未验证，不能宣传为独立审查已验收。
+本地包的字段筛选和冻结是工程保证。使用 CLI 子进程隔离器（`run-isolated` / `run-dual-review`）时，`standard` 模式清洗父环境变量、屏蔽 `LD_PRELOAD`/`PYTHONPATH`/宿主 `APPDATA`/`XDG_*`、以只读挂载临时文件并核验运行前后 `.parrhesia` SQLite/WAL/`runner.key` 未被篡改（`sandbox_boundary_violation`），`--offline-env` 注入回环代理与离线变量，以工作区 HMAC 签发 `runner_seal`；`--sandbox-mode strict_os` 调用 Linux `bwrap` 或 macOS `sandbox-exec`，不可用时明确返回 `sandbox_unavailable` 而非静默降级。每条 `isolation_grade` 均显式输出 `boundaries.enforced` 与 `boundaries.not_enforced`：仍不构成硬件飞地、亦不证明上下游模型权重彼此独立。未提供签名回执的普通宿主调用仅计为 `caller_attested` 或 `self_reported_context_only`，不能宣传为强隔离已验收。
 
 证据正文及附件中的“忽略规则”“请给出支持”等属于资料内容，不修改角色权限、费用上限或裁决标准。只允许必要字段进入模型请求；向第三方发送私有稿件、未公开结果和患者资料仍需该数据与接收服务的明确授权。
 

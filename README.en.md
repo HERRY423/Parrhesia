@@ -52,6 +52,10 @@ Parrhesia keeps routine tasks lightweight while applying checks to consequential
 
 ## Installation and host integration
 
+Rules load on demand: the main [skill](skills/parrhesia-review/SKILL.md) routes tasks to the [L2 scientific reference](skills/parrhesia-l2-reference/SKILL.md), [tool workflow](skills/parrhesia-review/references/workflow.md), or [optional integrations](skills/parrhesia-review/references/integrations.md). Project entrypoints no longer embed external plugin script names or provider-specific billing paths. All policy materials remain generated from one source.
+
+The contract supports the same approach: call `parrhesia_contract(section="index")`, then request relevant section IDs. Excerpts include original line ranges and a document digest; `expected_sha256` prevents mixing revisions. Calls without arguments retain the full-document response.
+
 The local MCP server and CLI require only **Python 3.11+**, with **zero third-party dependencies** and no external packages to install with `pip`.
 
 ### Option 1: Codex plugin marketplace (GUI / CLI)
@@ -63,7 +67,7 @@ In the Codex desktop plugin management page, choose **Add plugin marketplace** (
 | Field | Value | Notes |
 | :--- | :--- | :--- |
 | **Source** | `HERRY423/Parrhesia`<br>*(or `https://github.com/HERRY423/Parrhesia.git`)* | For an offline package or local clone, select the repository root containing `.agents/plugins/marketplace.json`, such as `C:\Parrhesia` |
-| **Git ref** | `main` | Gets the latest `0.3.0` updates; use a commit or tag to pin a version |
+| **Git ref** | `main` | Tracks latest `0.4.0` development updates; use a commit or `0.3.0` tag to pin a release |
 | **Sparse path** | **Leave blank** | The plugin manifest is at the root; do **not** copy the placeholder `plugins/codex` |
 
 Click **Add marketplace**, then select **Parrhesia Marketplace** and install **Parrhesia**.
@@ -79,17 +83,21 @@ codex plugin add parrhesia@parrhesia-marketplace
 codex plugin marketplace add C:\Parrhesia
 ```
 
-#### 3. Sync Codex global compact rules and the L2 scientific reference skill
+> Codex uses bare `python` in `.codex-plugin/plugin.json`, so **Python 3.11+** must resolve on `PATH`; Claude Code supports configurable `userConfig.python` in `/config` via `.claude-plugin/plugin.json`.
 
-Codex uses a **resident compact policy block (`< 10 KiB`) + on-demand `parrhesia-l2-reference` skill + separate role packets**, avoiding a roughly `48 KiB` full policy in routine context:
+#### 3. Sync Codex compact rules and complete layered skills
+
+Codex uses a **resident compact policy block (`< 10 KiB`) + `parrhesia-review` navigation and on-demand references + L2 scientific reference + role packets**. The script installs both complete skill directories, including the entry skill's three reference files:
 
 ```powershell
-# Sync compact rules to ~/.codex/AGENTS.md and the L2 reference skill to ~/.codex/skills/parrhesia-l2-reference/SKILL.md
+# Sync ~/.codex/AGENTS.md and both parrhesia-review and parrhesia-l2-reference under skills/
 python scripts/install-codex.py
 
 # Read-only consistency check against the repository policy source
 python scripts/install-codex.py --check
 ```
+
+Updates preflight the complete source bundle, back up original bytes and roll back on failure. An unchanged repeat leaves files untouched; `--check` checks every reference. This script does not register an MCP server; see [distribution and acceptance](docs/distribution.md).
 
 ---
 
@@ -108,10 +116,10 @@ Users with the old manifest must update the plugin and restart the session, veri
 
 #### 2. Standard Agent Plugins 1.0.0 clients
 
-Compatible hosts can load `plugin.json`, `mcp.json`, and `skills/` at the repository root, discovering **22 local tools**, read-only resources, and role prompts through stdio MCP:
+Compatible hosts can load `plugin.json`, `mcp.json`, and `skills/` at the repository root, discovering **28 local tools**, read-only resources, and role prompts through stdio MCP (with optional `--tool-profile full|compact|explore|review|adjudication` scoping):
 
-- **18 typed action tools (`parrhesia_<action>`)**: `create_case`, `register_evidence`, `register_hypothesis`, `scaffold_claim`, `set_ledger`, `freeze`, `review_packet`, `submit_review`, `adjudication_packet`, `submit_adjudication`, `verify`, `get_case`, `export`, `record_human_decision`, `claim_graph`, `evaluate_triggers`, `record_calibration_outcome`, and `calibration_report`, each with JSON Schema and permission annotations.
-- **`parrhesia_validate`**: read-only preflight in a SQLite transaction with automatic `ROLLBACK`; failures return structured `repair_hint` guidance.
+- **24 typed action tools (`parrhesia_<action>`)**: `create_case`, `register_evidence`, `register_hypothesis`, `scaffold_claim`, `draft_manuscript`, `import_artifact`, `extract_effects`, `set_ledger`, `upsert_claim`, `explore`, `analyze_design`, `freeze`, `review_packet`, `submit_review`, `adjudication_packet`, `submit_adjudication`, `verify`, `get_case`, `export`, `record_human_decision`, `claim_graph`, `evaluate_triggers`, `record_calibration_outcome`, and `calibration_report`, each with JSON Schema and permission annotations.
+- **`parrhesia_validate`**: read-only preflight in a SQLite transaction with automatic `ROLLBACK`; supports `collect_all=true` to return per-item issues, structured `repair_hint` guidance, and `ceiling_diffs`.
 - **3 backward-compatible general tools**: `parrhesia_contract`, `parrhesia_select_workspace`, and `parrhesia_workflow`.
 - **Read-only MCP resources and role prompts**: `parrhesia://contract`, `parrhesia://cases`, `parrhesia://claim-graph`, `parrhesia://calibration`; templates `parrhesia://cases/{case_id}`, `/ceilings`, `/triggers`, `/packet/{role}`; prompts `parrhesia_review_overclaim`, `parrhesia_review_underclaim`, and `parrhesia_adjudicate`.
 
@@ -168,7 +176,7 @@ Run the L2 dual-review protocol across separate web conversations without a loca
 
 ---
 
-## Core features and architecture: four pillars in `0.3.0`
+## Core features and architecture: four pillars in `0.4.0`
 
 ### Pillar 1: Two-dimensional evidence coordinates — `claim_type × evidence_level + scope`
 
@@ -201,9 +209,11 @@ In an `L2` ledger, `scaffold_claim` generates an honest all-`unknown` / `not_run
 - **9 design packages (`design_packages`)**: `observational`, `quasi_experimental`, `randomized`, `prediction`, `ml`, `mechanism`, `evidence_synthesis`, `theory`, and `qualitative`. Core checks cannot be bypassed with `not_applicable`; adjacent within-type levels have progressively stronger requirements.
 - **8 statistical-report dimensions (`statistical_report`) and 4 provenance-card kinds (`provenance_cards`)**: sample size/independent units, estimand/scale, effects/uncertainty, assumptions, missingness/exclusions, multiplicity, direct baseline comparisons, and robustness/limits; attach `citation`, `number`, `execution`, and `search` cards.
 - **Computable effects (`effect_records`)** separate `primary` / `benchmark` from `secondary` / `safety` / `exploratory` / `sensitivity` endpoints and check only declared applicable conditions:
-  - **Interval–p consistency**: records declaring matching two-sided unadjusted `inference_method="wald"` or `"log_wald"` are checked for mathematical compatibility of estimate, interval, and p-value. Other or undeclared methods remain `unassessed`.
-  - **GRIM and integer-denominator granularity**: proportion/accuracy records declaring `count_basis="unweighted_binary"` are checked for integer feasibility of sample size n, event counts, and decimal precision.
-  - **Primary null-crossing and secondary separation**: directional `primary` / `benchmark` claims whose intervals cross the null are blocked from positive verdicts (`primary_effect_crosses_null`); supported primary benefit can coexist with nonsignificant secondary or safety endpoints.
+  - **Interval–p, 2×2 contingency, multiplicity, and subgroup interaction checks**: check estimate/CI/p-value compatibility for matching two-sided unadjusted `wald`, `log_wald`, or `df`-bound `student_t` (without CI on directional primary records, `supported` rejects nonsignificant `p_value >= alpha`); verify 2×2 `contingency` tables (Fisher exact p and OR/RR/RD), `bonferroni` / `holm` / `bh_fdr` multiplicity adjustments, and `independent` subgroup `interaction_contrast` tests while leaving undeclared preconditions `unassessed`.
+  - **GRIM and integer-denominator granularity**: proportion/accuracy records declaring `count_basis="unweighted_binary"` are checked using source decimal precision when anchored for integer feasibility of sample size n, event counts, and decimals.
+  - **Primary null/margin/multiplicity gating and secondary separation**: directional or margin-bound `primary` / `benchmark` claims whose intervals cross null/margin (`primary_effect_crosses_null`) or fail declared adjusted alpha (`primary_effect_fails_multiplicity`) are blocked from positive verdicts; supported primary benefit can coexist with nonsignificant secondary or safety endpoints.
+- **Proactive computable methodology co-pilot (`explore` / `upsert_claim` / `analyze_design` / `copilot`)**: persistent `L1-Explore` hypothesis tree and exploratory fork accounting (`explore` with kill criteria and `lock_plan` promotion to L2), compact single-claim compiler (`upsert_claim` returning `ceiling_diff`), and **11 pure-stdlib deterministic diagnostic modes** (`power`, `tost_equivalence`, `e_value`, `design_effect`, `evidence_dominance`, `multiplicity_audit` with exploratory fork inflation, `interaction_heterogeneity` for Gelman-Stern contrasts & DerSimonian-Laird meta-analysis, `prediction_utility_audit` with EPV shrinkage & Vickers Decision-Curve Net Benefit, `attrition_bounds` Manski bounds & tipping-point rates, read-only `case_audit`, and cross-case `lineage_synthesis`), surfaced proactively in `upsert_claim`, `explore`, and blind packets.
+- **Manuscript scaffolding and artifact ingestion (`draft_manuscript` / `import_artifact` / `extract_effects`)**: extract location-anchored unknown claim skeletons and mixed-claim decomposition flags (`split_recommended`) in pure stdlib from Markdown / LaTeX (bounded workspace `\input`/`\include`) / DOCX / Quarto / PDF (pure-stdlib bounds by default; opt-in `pdf_backend="auto"` enables local read-only PyMuPDF/`pypdf` fallback and transparently reports `parser_backend`) / HTML / JATS XML / `.ipynb` narratives; inspect notebooks (including `out_of_order_execution`), `.rmd`/`.qmd`, multi-sheet `.xlsx`, `.parquet` footer metadata, workflows, containers/DVC (with local regular-file digest checks), HPC logs, 2×2 `contingency_json`, confusion matrices, and statistical tables (with `sheet_name` and `assumed_reported_scale`) without executing documents or inventing outcomes (see [workflow, formats, and boundaries](docs/artifact-ingestion.md)).
 
 ---
 
@@ -224,7 +234,7 @@ Draft + source snapshots (reject symlinks/path escape) + scaffold_claim + Ledger
             [per-claim verdict; substantive revised_text_quote or explicit disagreement]
                                       |
                                       v  verify & export (gates + non-blocking symmetry_audit)
-                  Read-only HTML / Markdown report / SQLite event hash chain
+        Markdown report (export) / SQLite hash chain / read-only saved-case HTML (report)
 ```
 
 The kernel rejects submissions that use unsupported `pass` labels, placeholder reasons, unrelated header quotes, or nominal acceptance without actual revision. Rejection does not advance the state machine.
@@ -235,7 +245,8 @@ The kernel rejects submissions that use unsupported `pass` labels, placeholder r
 | **Evidence kinds and synthetic isolation** | Labeling observational data as `intervention`; using synthetic data for real empirical conclusions | Enforce `kind` compatibility with claim type/level; positive synthetic support is limited to `description × recorded` and `computational × benchmark_measured` |
 | **Unique source anchors and claim linkage** | Fabricated quotes or unrelated headers/copyright text | Positive references require a uniquely matching `quote` of at least 6 CJK characters or 12 visible ASCII characters, sharing numbers, substantive terms, or provenance-card locators with the claim (`unlinked_evidence_quote`) |
 | **Four-role windows and lineage** | ANSI logs rejected; contradictions at the end of files larger than 128 KiB hidden by truncation; derived tables laundering synthetic ancestors | Strip ANSI controls; unique quotes produce budgeted windows preserving head metadata, primary quote, anchors, and tail summary; `derived_from_evidence_ids` tracks ancestor hashes and synthetic provenance |
-| **Substantive incorporation and symmetry audit** | Marking `incorporated` while retaining the criticized text; unjustified downgrades without counterevidence | `revised_text_quote` must occur uniquely in both proposed and revised text, be absent from the original, and substantively replace criticized terms; otherwise record `disagreement`. Non-blocking `symmetry_audit` flags excessive hedging and unsupported abstention |
+| **Substantive incorporation and symmetry gate (`symmetry_mode`)** | Marking `incorporated` while retaining criticized text; unjustified downgrades without counterevidence; vacuous “future studies” deferral | `revised_text_quote` must appear uniquely in revised text, be absent from original, and substantively replace criticized terms; v2 defaults to `symmetry_mode="enforced"` (`"advisory"` optional), blocking `unjustified_overhedging`, `false_balance_neutrality`, `unjustified_underclaim`/`abstention`/`downgrade`, and vacuous bare-term reversals while requiring `abstention_justification`, `actionable_stance`, and `evidence_dominance` (`lexical_advisories` remain non-blocking) |
+| **OS-process isolation & two-stage `estimate_first` blind protocol** | Reviewers anchored by author framing, or self-reported isolation inside shared context | `review_packet(..., stage="evidence_only")` strips author claims & `claim_direction`; CLI `parrhesia run-isolated` / `run-dual-review --two-stage-blind` commits `stage1_estimate_sha256` before revealing full packets in a second sandbox, redirects APPDATA/XDG, blocks `LD_PRELOAD`/`PYTHONPATH`, supports `--offline-env` & `--sandbox-mode strict_os` (`bwrap`/`sandbox-exec`, failing `sandbox_unavailable` when absent), detects `.parrhesia` tampering (`sandbox_boundary_violation`), seals HMAC `runner_seal`, and reports `isolation_grade.boundaries` (`enforced`/`not_enforced`) |
 
 ---
 
@@ -244,9 +255,9 @@ The kernel rejects submissions that use unsupported `pass` labels, placeholder r
 1. **Command provenance without recording secret environment values, and event integrity (`record-exec` / `events`)**
    - `python -m parrhesia record-exec` captures the command, Git commit/dirty state, lockfile hashes, input/output SHA-256 through `--input-file` / `--output-file`, and environment presence markers rather than secret values.
    - **Failure receipts remain durable**: timeout (wrapper `124`), start failure (wrapper `127`), and nonzero child exits preserve logs, snapshots, and events without overwriting history. Claim/run-group gates detect hidden failed forks (`selective_execution_omission`) and unadjusted selection across forks (`unadjusted_execution_multiplicity`).
-   - **SQLite event hash chain (`PRAGMA user_version = 2`)**: events carry `prev_event_hash` and `event_hash`; `verify` and `get_case` expose `event_chain_status`: `verified`, `legacy_unhashed`, `mixed_verified`, or `tampered`.
+   - **SQLite event hash chain & incremental indexes (`PRAGMA user_version = 3`)**: events carry `prev_event_hash` and `event_hash` verified via `event_chain_status` (`verified`, `legacy_unhashed`, `mixed_verified`, `tampered`); `case_summaries`, `case_links`, `evidence_index`, and `stale_cases` triggers let `list_cases`, `claim_graph`, `evaluate_triggers`, and `calibration_report` avoid full-workspace JSON deserialization and unrelated disk rehashing.
 2. **Longitudinal claim graph (`claim_graph`) and executable reversal triggers (`reversal_triggers`)**
-   - An append-only DAG connects studies through `prior_case_ids`, `supersedes_case_id`, and `prior_claim_links` (`replicates`, `refines`, `narrows`, `extends`, `supersedes`, `reverses`, `refutes`) without modifying frozen prior cases. Draft, frozen, or unadjudicated successor relations remain `pending`; `active_standing` changes only after a valid successor adjudication.
+   - An append-only DAG connects studies through `prior_case_ids`, `supersedes_case_id`, and `prior_claim_links` (`replicates`, `refines`, `narrows`, `extends`, `supersedes`, `reverses`, `refutes`) without modifying frozen prior cases. Draft, frozen, or unadjudicated successor relations remain `pending`; `active_standing` changes only after a valid successor adjudication. Read-only `analyze_design(mode="lineage_synthesis")`, `claim_graph(include_synthesis=true)`, and CLI `parrhesia synthesize` run 3-layer semantic cohort deduplication—Layer 1 excluding same-case, direct/`derived_from_evidence_ids` ancestor SHA-256s, matching `effect_records[].cohort_id`, standardized trial/accession IDs (`NCT`/`GSE`/`phs`), and shared paper DOIs (unless distinct explicit `cohort_id`s are supplied), plus Layer 2 flagging identical `n>=20` effect clones and high text 3-gram Jaccard (`>=0.65`) as `suspected_cohort_overlaps` blocking `replicated_consistent` (`suspected_duplicate_cohort_review_needed`)—alongside cumulative DerSimonian-Laird pooling and ancestor `reversal_triggers` cascades.
    - Five predicate kinds—`effect_metric`, `check_status`, `evidence_status`, `execution_outcome`, `replication_verdict`—make reversal conditions executable. Adjudication rejects `self_triggering_reversal_condition`; follow-up `evaluate_triggers` returns `fired`, `unfired`, or `pending_data`.
 3. **Source-bound post-hoc probability calibration (`record_calibration_outcome` / `calibration_report`)**
    - Decisions may include explicit `[0.0, 1.0]` `forecast_probability`. Append-only outcomes must bind verified `external_evidence` or a valid adjudicated `follow_up_case`; missing or invalid sources remain pending and do not enter resolved scores.
@@ -266,6 +277,14 @@ python -m parrhesia demo --output .\artifacts\my-demo
 
 The directory contains an interactive read-only `review.html`, a Markdown adjudication report, `workflow-transcript.json`, and `.parrhesia/state.sqlite3`.
 
+Render an existing adjudicated case without rerunning the demo or submitting a decision:
+
+```powershell
+python -m parrhesia report --workspace C:\YourWorkspace --case-id case_... --output reports/review.html
+```
+
+The output is workspace-relative and never overwrites an existing file. The command reads a read-only database snapshot, checks frozen digests and the event chain, and preserves saved verification, unknowns and human decisions. It does not re-verify source files or record human acceptance.
+
 ### 2. Core CLI reference
 
 ```powershell
@@ -278,7 +297,13 @@ python -m parrhesia call scaffold_claim --workspace C:\YourWorkspace --input doc
 # Execute an analysis, capture Git/lockfile/input-output hashes and non-secret environment markers, and create an execution card
 python -m parrhesia record-exec --workspace C:\YourWorkspace --case-id <case_id> --claim-id C1 --card-id exec-1 --input-file data/clean.csv --output-file results/metrics.json -- python your_analysis.py
 
-# Start the local stdio MCP server for a host client
+# Run two-stage evidence-only commit -> reveal parallel isolated reviews with offline env and HMAC runner_seal (plus optional adjudication & export)
+python -m parrhesia run-dual-review --workspace C:\YourWorkspace --case-id <case_id> --two-stage-blind --offline-env --run-adjudication --auto-export -- python your_isolated_adapter.py
+
+# Generate read-only cross-case Living Evidence Synthesis JSON and offline HTML report (with 3-layer cohort dedup guard & SVG forest plots)
+python -m parrhesia synthesize --workspace C:\YourWorkspace --output reports/living-synthesis.html
+
+# Start the local stdio MCP server for a host client (supports --tool-profile explore|compact|review|adjudication)
 python -m parrhesia serve --workspace C:\YourWorkspace
 ```
 
@@ -290,32 +315,34 @@ python -m parrhesia serve --workspace C:\YourWorkspace
 python scripts/generate-policy.py --check
 python scripts/generate-policy.py
 
-# 2. Stage 0 modes currently supported by the published repository
-python scripts/run-stage0-eval.py --mode mechanical --report-out docs/verification/stage0-evaluation.md
-python scripts/run-stage0-eval.py --mode prompt-export --output-dir artifacts/stage0-prompts
+# 2. This worktree's full mechanical suite includes ingestion; a bounded mode is also available
+python -X utf8 scripts/run-stage0-eval.py --mode mechanical --report-out artifacts/stage0-current.md
+python -X utf8 scripts/run-stage0-eval.py --mode ingestion
+python -X utf8 scripts/run-stage0-eval.py --mode prompt-export --output-dir artifacts/stage0-prompts
 
 # 3. Automated unit tests
 python -m unittest discover -s tests -v
 
 # 4. Deterministic distribution ZIP, checking manifest/runtime version consistency
-python scripts/build-release.py --output dist/parrhesia-0.3.0.zip
+python scripts/build-release.py --output dist/parrhesia-0.4.0.zip
 ```
 </details>
 
-The published Stage 0 script currently supports only `mechanical` and `prompt-export`. Local extended evaluation scripts, test changes, and raw evidence were not published with these READMEs; these commands do not reproduce every local acceptance check.
+This release also provides targeted counterfactual, held-out, metamorphic and P1/P2 modes; see `--help`. See [evaluation refresh](docs/verification/evaluation-modernization-2026-11-17.md) for measured inputs, ten ingestion regressions and retained gaps. The [author-burden pilot](docs/evaluation/author-impact-pilot.md) provides four-arm preparation and observation tools; live model and author-benefit evaluation remain unrun. These `0.4.0` test results do not update previously installed versions.
 
 ---
 
 ## Our own evidence boundaries (practicing what we preach)
 
-Parrhesia reports its own `0.3.0` maturity using the same `engineering` and `computational` evidence levels:
+Parrhesia reports maturity separately for the **`0.4.0` release (`v0.4.0`)** and the **frozen `0.3.0` release** using the same `engineering` and `computational` evidence levels:
 
-**Latest CI (2026-11-14, `engineering × test_passed`)**: the [GitHub Actions run](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809) for [commit `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) completed on both Windows and Ubuntu (Python 3.11) with **117 tests passed, 0 failures, and 0 skips**; policy generation consistency checks also passed. Both platforms installed `jsonschema==4.26.0` and actually ran and passed `test_actual_official_schemas` (original schema byte hashes, identifiers, Draft 2020-12 validity, and `plugin.json` / `mcp.json` validation). This result covers only that commit's public CI test suite. It does not replace historical test totals, extend the `host_accepted` scope below, or change the remaining limitations; earlier failure and skip records are retained.
+**Historical public CI baseline (`0.3.0`, 2026-11-14, `engineering × test_passed`)**: the [GitHub Actions run](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809) for [commit `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) completed on both Windows and Ubuntu (Python 3.11) with **117 tests passed, 0 failures, and 0 skips**; policy generation consistency checks also passed. Both platforms installed `jsonschema==4.26.0` and actually ran and passed `test_actual_official_schemas` (original schema byte hashes, identifiers, Draft 2020-12 validity, and `plugin.json` / `mcp.json` validation). This historical baseline covers only that commit's public CI test suite and does not replace `0.4.0` tests, extend the `host_accepted` scope below, or erase earlier failure/skip records.
 
 | Evaluation area | Current evidence and judgment | Supported scope and limits |
 | :--- | :--- | :--- |
-| **Windows Codex desktop integration and native file-symlink rejection**<br>(`engineering × host_accepted`, **supported** within scope) | On 2026-11-14, Windows 11 + Python 3.13.9 + Codex desktop loaded the frozen `0.3.0` package ([acceptance summary](docs/verification/release-0.3.0.md)). Harm-proposition review/adjudication/export, pending successor relations, calibration source verification/invalidation, CLI timeout/start-failure/nonzero-exit receipts read back by the host, and native file-symlink rejection after enabling Developer Mode were exercised. Original symlink test: 1 passed, 0 skipped; rejected registration changed neither evidence nor events | The local MCP workflow, state machine, event chain, and tested path boundary operated according to contract in this Windows Codex session with fixed synthetic material. **Limits**: reviewer content was a same-context fixed fixture, not independent scientific model review; this does not establish acceptance on other hosts, coverage of all reparse point types or concurrency races, or `user_impact` |
-| **Local state machine, gates, computable effects, longitudinal calibration, and host adapters**<br>(`engineering × test_passed`, **supported**) | `0.3.0` separates proposition support from benefit direction, requires explicit `wald`/`log_wald` and `unweighted_binary` applicability, preserves pending draft successors, binds outcome sources, separates explicit forecasts from heuristics and truth coverage from replication containment, and retains failure receipts ([migration guide](docs/migration-0.3.md)). The pre-repair historical snapshot contains 184 unit tests and five Stage 0 evaluation columns ([Stage 0](docs/verification/stage0-evaluation.md), [0.2.0 verification](docs/verification/release-0.2.0.md)) | Supports the tested SQLite ACID transactions, `events` SHA-256 chain, 22 MCP tools including `parrhesia_validate` and `repair_hint`, anti-rubber-stamping gates ([hardening verification](docs/verification/gate-bypass-hardening-20261019.md)), and adapter structure/contracts for Codex, Claude, Grok, Antigravity, and ChatGPT. Historical totals are not post-repair rerun counts |
+| **`0.4.0` release (`v0.4.0`): 28 MCP tools, two-stage blind review, sandbox hardening, and 3-layer cohort dedup**<br>(`engineering × test_passed`, **supported** via local deterministic & packaging checks) | Extends `0.3.0` to **28 MCP tools** and 5 tool profiles, adding ingestion/compaction (`$defs`/`$ref` + `sha256` sharing), **symmetric pre-adjudication gating** (`symmetry_mode="enforced"`), **`L1-Explore` hypothesis tree & 11-mode computable methodology co-pilot**, `upsert_claim`, **two-stage `estimate_first` commit-then-reveal (`stage="evidence_only"` / `--two-stage-blind`)**, **hardened OS-isolated `run-dual-review` (`strict_os` / `--offline-env` / `.parrhesia` snapshot check + `boundaries` + HMAC `runner_seal`)**, **3-layer semantic cohort deduplication in `lineage_synthesis` & offline SVG forest reports**, opt-in `pdf_backend="auto"`, a 12-case realistic scientific `dry-run` suite, and offline wheel/ZIP packaging verification (see [hardening verification](docs/verification/hardening-2026-11-21.md), [ingestion verification](docs/verification/artifact-ingestion-2026-11-15.md), [protocol load verification](docs/verification/protocol-load-2026-11-16.md), and [realistic pilot benchmark](docs/evaluation/realistic-science-pilot-v1.json)) | **Local deterministic tests, protocol checks, mechanical suite, zero-LLM `dry-run`, and isolated wheel packaging only (`external_llm_status="not_run"`)**: **no desktop `host_accepted` verification has been run on `0.4.0`**, native Linux `bwrap` / macOS `sandbox-exec` kernel execution awaits target-OS testing, and live LLM compliance or researcher time savings remain unmeasured |
+| **Windows Codex `0.3.0` frozen package integration and native file-symlink rejection**<br>(`engineering × host_accepted`, **supported** for frozen `0.3.0` only) | On 2026-11-14, Windows 11 + Python 3.13.9 + Codex desktop loaded the frozen `0.3.0` package ([acceptance summary](docs/verification/release-0.3.0.md)). Harm-proposition review/adjudication/export, pending successor relations, calibration source verification/invalidation, CLI timeout/start-failure/nonzero-exit receipts read back by the host, and native file-symlink rejection after enabling Developer Mode were exercised. Original symlink test: 1 passed, 0 skipped; rejected registration changed neither evidence nor events | The then-current 22-tool MCP workflow, state machine, event chain, and tested path boundary operated according to contract in this Windows Codex session with fixed synthetic material. **Limits**: reviewer content was a same-context fixed fixture, not independent scientific model review; does not cover `0.4.0` new tools, other hosts, all reparse point types or concurrency races, or `user_impact` |
+| **Local state machine, gates, computable effects, longitudinal calibration, and host adapters**<br>(`engineering × test_passed`, **supported**) | `0.3.0` separates proposition support from benefit direction, requires explicit `wald`/`log_wald` and `unweighted_binary` applicability, preserves pending draft successors, binds outcome sources, separates explicit forecasts from heuristics and truth coverage from replication containment, and retains failure receipts ([migration guide](docs/migration-0.3.md)). The pre-repair historical snapshot contains 184 unit tests and five Stage 0 evaluation columns ([Stage 0](docs/verification/archive/stage0-evaluation-before-2026-11-17.md), [0.2.0 verification](docs/verification/release-0.2.0.md)) | Supports the tested SQLite ACID transactions, `events` SHA-256 chain, the then-current 22 MCP tools including `parrhesia_validate` and `repair_hint`, anti-rubber-stamping gates ([hardening verification](docs/verification/gate-bypass-hardening-20261019.md)), and adapter structure/contracts for Codex, Claude, Grok, Antigravity, and ChatGPT. Historical totals are not post-repair rerun counts |
 | **Net behavioral improvement on live LLMs**<br>(`computational × unassessed`, **insufficient_evidence** / `not_run`) | The [evaluation plan](docs/evaluation-plan.md) is frozen and leakage-audited four-arm blind prompt packets were exported (`A_baseline`, `B_compact`, `B_full`, `E_full_l2_workflow`; `279` packets). External paid LLM blind evaluation remains `not_run` | Reductions in overclaim, excessive disclaimers, and hollow neutrality have **not been measured on a real blinded held-out evaluation**. The plan estimates 120–160 independent cases to detect an absolute improvement of 15–20 percentage points |
 | **Deterministic cross-checks versus scientific truth**<br>*(architectural boundary)* | The engine checks source SHA-256, unique claim-linked quotes, progressively required design checks, evidence-bound `pass`, explicit design contradictions, and `input_manifest` | Deterministic checks are **not proof of scientific truth**. They can block empty form-filling, unsupported `pass`, adjacent-level misuse, and unbound outcomes, but cannot independently identify carefully fabricated source files without a reproducible execution chain or replace domain peer review |
 
@@ -326,14 +353,15 @@ Additional acceptance scope: failure receipts cover **installed CLI execution �
 ## Documentation
 
 - **Core policy and contracts**
-  - [Single policy source (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [Product design (`docs/product-design.md`)](docs/product-design.md) · [Runtime contract (`docs/contract.md`)](docs/contract.md)
+  - [Single policy source (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [Product design (`docs/product-design.md`)](docs/product-design.md) · [Runtime contract (`docs/contract.md`)](docs/contract.md) · [Manuscript and artifact ingestion (`docs/artifact-ingestion.md`)](docs/artifact-ingestion.md)
   - [0.3.0 migration (`docs/migration-0.3.md`)](docs/migration-0.3.md) · [0.2.0 migration (`docs/migration-0.2.md`)](docs/migration-0.2.md) · [Evaluation plan (`docs/evaluation-plan.md`)](docs/evaluation-plan.md)
 - **Host integrations and skills**
   - [L2 review workflow (`skills/parrhesia-review/SKILL.md`)](skills/parrhesia-review/SKILL.md) · [L2 scientific reference (`skills/parrhesia-l2-reference/SKILL.md`)](skills/parrhesia-l2-reference/SKILL.md)
   - [Antigravity](docs/antigravity-integration.md) · [Grok](docs/grok-integration.md) · [ChatGPT](docs/chatgpt-integration.md)
   - [Repository `AGENTS.md`](AGENTS.md) · [Full policy template](templates/AGENTS.parrhesia.md) · [Codex compact template](templates/AGENTS.parrhesia.codex.md) · [ChatGPT template](templates/AGENTS.parrhesia.chatgpt.md)
 - **Verification and audits**
-  - [0.3.0 desktop acceptance (`docs/verification/release-0.3.0.md`)](docs/verification/release-0.3.0.md) · [0.2.0 verification (`docs/verification/release-0.2.0.md`)](docs/verification/release-0.2.0.md)
+  - [2026-11-21 Hardening verification (`docs/verification/hardening-2026-11-21.md`)](docs/verification/hardening-2026-11-21.md) · [0.3.0 desktop acceptance (`docs/verification/release-0.3.0.md`)](docs/verification/release-0.3.0.md) · [0.2.0 verification (`docs/verification/release-0.2.0.md`)](docs/verification/release-0.2.0.md)
+  - [Ingestion verification (`docs/verification/artifact-ingestion-2026-11-15.md`)](docs/verification/artifact-ingestion-2026-11-15.md) · [Protocol load verification (`docs/verification/protocol-load-2026-11-16.md`)](docs/verification/protocol-load-2026-11-16.md)
   - [Stage 0](docs/verification/stage0-evaluation.md) · [Anti-stall gates](docs/verification/anti-stall-gates.md) · [Gate-bypass hardening](docs/verification/gate-bypass-hardening-20261019.md)
 
 ---

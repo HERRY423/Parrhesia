@@ -1,0 +1,169 @@
+{
+  "date": "2026-11-17",
+  "scope": "engineering_test_passed_on_local_worktree; no host, external model, or user-impact acceptance inferred",
+  "evaluation_revision": "text-advisory-regression-v1",
+  "before": {
+    "metamorphic_false_advisories": 2,
+    "metamorphic_passed": 12,
+    "realistic_false_rejections": 0,
+    "realistic_false_advisories": 0,
+    "hard_caught": 6,
+    "advisory_only": 0,
+    "uncaught": 6,
+    "mechanical_recall": 0.5
+  },
+  "after": {
+    "metamorphic_false_advisories": 0,
+    "metamorphic_passed": 12,
+    "realistic_false_rejections": 0,
+    "realistic_false_advisories": 0,
+    "hard_caught": 6,
+    "advisory_only": 2,
+    "uncaught": 4,
+    "mechanical_recall": 0.5
+  },
+  "fresh_qualification": {
+    "status": "synthetic_development_qualification_not_independent_holdout",
+    "suite_sha256": "9daa160783c2aa2b2a385df87e853175e4b542f605f6fb031e8a658fb765cca2",
+    "before": {
+      "total": 38,
+      "passed": 26,
+      "controls": 21,
+      "false_advisories": 6,
+      "targets": 17,
+      "targets_matched": 11,
+      "all_passed": false
+    },
+    "after": {
+      "total": 38,
+      "passed": 38,
+      "controls": 21,
+      "false_advisories": 0,
+      "targets": 17,
+      "targets_matched": 17,
+      "all_passed": true
+    }
+  },
+  "semantic_boundary_probes": {
+    "count": 8,
+    "all_observed_without_advisory": true,
+    "accuracy": null,
+    "status": "diagnostic; no independent gold labels"
+  },
+  "full_stage0": {
+    "all_passed": true,
+    "inputs_unchanged_during_run": true,
+    "frozen_expectations_matched": 10,
+    "frozen_heldout_all_passed": false,
+    "revised_regression_all_passed": true
+  },
+  "regression_tests": {
+    "count": 80,
+    "seconds": 28.666,
+    "passed": true,
+    "log": "review/text-advisories-2026-11-17/delivery-regressions.log"
+  },
+  "legacy_leakage_unit_tests": {
+    "count": 3,
+    "passed": true
+  },
+  "advisory_audit": {
+    "source": "parrhesia/text_advisories.py",
+    "sha256": "16cd7a769580902c550c4011a924be953a0a931a0e2acf717b012069fdfceb18",
+    "regex_components": [
+      "CURRENT_CONTEXT_RE",
+      "GENERATED_ACTION_RE",
+      "GENERATED_ENTITY_RE",
+      "GENERATOR_RE",
+      "HISTORY_PREFIX_RE",
+      "HYPOTHETICAL_OR_NEGATED_RE",
+      "NONPRIMARY_CLAUSE_RE",
+      "PENDING_OUTCOME_RE",
+      "PRIMARY_CLAUSE_OVERRIDE_RE",
+      "PRIMARY_SCOPE_RE",
+      "SAFETY_FOCUS_RE",
+      "_PRIMARY_EFFICACY_SIGNAL_RE",
+      "_SAFETY_OR_HOSP_CLAUSE_RE"
+    ],
+    "no_case_literals": true,
+    "case_literal_findings": [],
+    "regex_overlap_field_count": 132,
+    "independent_holdout": false,
+    "scope": "Exposed regression samples. Literal guard is not a proof against overfitting; new synthetic qualification is also developer-authored."
+  },
+  "preservation": {
+    "parrhesia/gates.py": true,
+    "parrhesia/text_anchors.py": true,
+    "parrhesia/symmetry_audit.py": true,
+    "scripts/run-stage0-eval.py": true,
+    "scripts/check-eval-leakage.py": true,
+    "docs/evaluation/stage0-cases.json": true,
+    "docs/verification/stage0-evaluation.md": true,
+    "review/evaluation-modernization-2026-11-17/stage0-final.utf8.json": true,
+    "live_stage0_fixture_unchanged": true,
+    "new_fixture_unchanged": true,
+    "numeric_anchor_code_unchanged": true
+  },
+  "current_input_checks": {
+    "current_fingerprint_matches": true,
+    "current_policy_matches": true
+  },
+  "development_failures": [
+    {
+      "phase": "development",
+      "test": "test_six_core_false_obstruction_probes_and_anti_abstention_audit",
+      "probe": "probe4_ae_safety_null",
+      "observed": "AssertionError: 1 != 0 (lexical_advisory_count)",
+      "evidence_source": "Observed exec tool output in this task; no original stdout file was created for that first invocation.",
+      "resolved_by": "Restored existing primary efficacy signal context while keeping claim-focused safety protection."
+    },
+    {
+      "phase": "development",
+      "test": "test_primary_safety_and_current_failure_survive_scoping",
+      "evidence_source": "text-tests-first.log",
+      "resolved_by": "Preserved primary endpoints with intervening modifiers such as safety."
+    },
+    {
+      "phase": "first_full_stage0",
+      "evidence_source": "stage0-disk-full.stderr.log",
+      "observed": "sqlite3.OperationalError: database or disk is full",
+      "root_cause": "not_established",
+      "retry": "Completed full run using project-local TEMP/TMP; original failure retained."
+    },
+    {
+      "phase": "delivery_boundary_check",
+      "evidence_source": "clause-boundary-before.json",
+      "observed": "Adjacent no and Support across a line break were concatenated into a false contradiction cue.",
+      "resolved_by": "Retained clause separators during legacy phrase scanning; final eight targeted tests and full Stage 0 rerun passed."
+    }
+  ],
+  "sha256": {
+    "parrhesia/gates.py": "9ea4b90237c0934918e6cd03d42df7710794b9062815411cbce593959d1a471e",
+    "parrhesia/text_advisories.py": "16cd7a769580902c550c4011a924be953a0a931a0e2acf717b012069fdfceb18",
+    "parrhesia/symmetry_audit.py": "fa8c87bd262e4a1075b583277999556f532baaa0189c7ed33f16d81219ae949b",
+    "parrhesia/text_anchors.py": "45107bca7c4a3d4b903346b64cab6f9f421d1b7fd82455474db70a55f568bd1f",
+    "scripts/eval_text_advisories.py": "9e095351de9ff8351bf3a3771b33d12ab5ef729d1bd43460a3902d2f81990191",
+    "scripts/run-stage0-eval.py": "82a5adaf8f628489f0732b6052d14151d7a217ae73c45bb60a7d5cb8bbec7f93",
+    "scripts/check-eval-leakage.py": "84d26e3f64da23fb2ad3d67157e323f0caae8159a3e1064f745311b8fa34e1b0",
+    "scripts/eval_inputs.py": "97cfccd4fad1e600bfbf571fcb39c135639b2d900f09b25f732d202be56b1fda",
+    "tests/test_text_advisories.py": "e7400e2127eed5a6043f503adf6799e1d5a108c12c05affd672d4529a35070b0",
+    "tests/test_optimizations.py": "7c3c81a57f432bc914df06438d43384b1825d496b1316f290aa81a555a39bfc0",
+    "docs/evaluation/stage0-cases.json": "edf92f49a3980c9e630c315daea3ca29e76f50538a81789288faf91205446965",
+    "docs/evaluation/text-advisory-cases-v1.json": "9daa160783c2aa2b2a385df87e853175e4b542f605f6fb031e8a658fb765cca2",
+    "docs/evaluation/text-semantic-boundaries-v1.json": "9ec5b5e9cb3a8c1f329899a2d8f5f33d7d0775006b48f9e4f49b9d5ff1c1f90b",
+    "docs/verification/archive/stage0-evaluation-before-text-advisories-2026-11-17.md": "df5e287dc228dc6b065131c193e1af75def63f3a190a9453bad2b4ededc7686d"
+  },
+  "raw_receipts": {
+    "review\\text-advisories-2026-11-17\\stage0-final.json": "51ed420a9a5b028ed7a1f89f272bdf57cac7451653c6b039937bd8703b800335",
+    "review\\text-advisories-2026-11-17\\stage0-disk-full.stderr.log": "623b81f7923f4bb056af39213b0466bfc1d854794a347b170637bcdae1af1828",
+    "review\\text-advisories-2026-11-17\\new-cases-before.json": "a9f073cc9c6a0d0194af31cfc509f41d4ff59200a8c529b3c533609b282a04c4",
+    "review\\text-advisories-2026-11-17\\new-cases-final.json": "88b8c7dc591c9ce468d85f92f689fb334005f186bb2d593f50039a3e3f490222",
+    "review\\text-advisories-2026-11-17\\semantic-boundaries.json": "2ae2c048f825c0b3a25612cda8a86180ded705171cad67196204b5fb66c4d2cf"
+  },
+  "prompt_export_audit": {
+    "strict_passed": true,
+    "answer_leak_count": 0,
+    "legacy_heldout_prompt_overlap_count": 0,
+    "scope": "Legacy lexicon overlap and prompt answer leakage; new advisory module case-literal guard. Generic advisory regex overlaps are separately reported, not evidence of an independent holdout."
+  }
+}

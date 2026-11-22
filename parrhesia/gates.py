@@ -4,6 +4,40 @@ import re
 import unicodedata
 from .claims import NON_PRIMARY_FAILED_FORK_ROLES, TYPE_LEVELS, needs_causal_basis
 from .contracts import ContractError, array, enum, fail, fields, ids, obj, string
+from .text_advisories import explicit_generated_source, explicit_pending_outcome, scoped_evidence_clauses
+from .text_anchors import (
+    ANSI_ESCAPE_RE,
+    BINARY_SIGNATURES,
+    CJK_STOPWORDS,
+    DECREASE_POLARITY_RE,
+    INCREASE_POLARITY_RE,
+    MIN_CJK_QUOTE_CHARS,
+    MIN_QUOTE_CHARS,
+    QUOTE_STOPWORDS,
+    WINDOW_DELIMITER_LINE_RE,
+    _authenticated_quote_status,
+    _authenticated_source_text,
+    _claimed_effect_numbers,
+    _claimed_effect_tokens,
+    _clause_bounds,
+    _extract_floats,
+    _extract_signed_tokens,
+    _mask_metadata_noise,
+    _number_matches_source,
+    _parse_authenticated_windows,
+    _priority_text_for_evidence,
+    _split_clauses,
+    _strip_nonprimary_clauses,
+    _token_matches_source,
+    _val_close,
+    effect_numbers_anchored,
+    quote_length,
+    quote_links_to_claim,
+    quote_status,
+    strip_terminal_escapes,
+    strip_window_markers,
+    text_content,
+)
 
 GATE_VERSION = 1
 MIN_QUOTE_CHARS = 12
@@ -15,7 +49,11 @@ GATE_GUIDANCE = (
     "synthetic cannot support empirical positives. "
     "Respect check_ceilings, level-progressive design/statistical check requirements, evidenced pass rules, and evidence-kind compatibility "
     "(observational evidence may conditionally support causal_effect only as partially_supported when causal_basis and observational "
-    "confounding/robustness checks pass). Adjudication binds each finding to its claim's decision with an incorporated revised_text_quote "
+    "confounding/robustness checks pass). Every stance and decision requires a concrete evidence/check-backed rationale "
+    "(and concrete scope/assumption condition when partially_supported), and every decision requires a concrete observable reversal_condition "
+    "stating what specific outcome, threshold, direction change, or check/evidence event would alter the judgment (generic future-study deferrals "
+    "such as '未来有更多研究时，再重新评估' or 're-evaluate when more studies are available' are rejected). "
+    "Adjudication binds each finding to its claim's decision with an incorporated revised_text_quote "
     "or explicit disagreement. Blind is frozen case-wide."
 )
 ESSENTIAL_DESIGN_CHECKS = {
@@ -375,132 +413,6 @@ def gated(case):
     return True
 
 
-def strip_window_markers(text):
-    if not isinstance(text, str) or not text:
-        return ""
-    if "<<<PARRHESIA_EXCERPT_WINDOW" not in text:
-        return text
-    return "".join(
-        line
-        for line in text.splitlines(keepends=True)
-        if not WINDOW_DELIMITER_LINE_RE.match(line.rstrip("\r\n"))
-    )
-
-
-def _parse_authenticated_windows(ev):
-    """Verify sequential chunk headers and SHA-256 slices against ev['excerpt_windows']."""
-    if not isinstance(ev, dict) or ev.get("source_text_status") != "truncated":
-        return None
-    rendered = ev.get("source_text")
-    windows = ev.get("excerpt_windows")
-    if not isinstance(rendered, str) or not isinstance(windows, list) or not windows:
-        return None
-    parsed = []
-    pos = 0
-    total = len(rendered)
-    for idx, win in enumerate(windows):
-        if not isinstance(win, dict):
-            return None
-        w_index = win.get("index")
-        w_roles = win.get("roles")
-        start_char = win.get("start_char")
-        end_char = win.get("end_char")
-        start_line = win.get("start_line")
-        end_line = win.get("end_line")
-        total_chars = win.get("total_chars")
-        text_sha256 = win.get("text_sha256")
-        if (
-            type(w_index) is not int
-            or w_index != idx + 1
-            or not isinstance(w_roles, list)
-            or not all(isinstance(r, str) for r in w_roles)
-            or type(start_char) is not int
-            or type(end_char) is not int
-            or type(start_line) is not int
-            or type(end_line) is not int
-            or type(total_chars) is not int
-            or not (0 <= start_char <= end_char <= total_chars)
-            or start_line < 1
-            or end_line < start_line
-            or not isinstance(text_sha256, str)
-        ):
-            return None
-        header = (
-            f"<<<PARRHESIA_EXCERPT_WINDOW index={w_index} role={','.join(w_roles)} "
-            f"chars={start_char}-{end_char} lines={start_line}-{end_line} of total_chars={total_chars}>>>\n"
-        )
-        if not rendered.startswith(header, pos):
-            return None
-        pos += len(header)
-        body_len = end_char - start_char
-        if pos + body_len > total:
-            return None
-        body = rendered[pos : pos + body_len]
-        if hashlib.sha256(body.encode("utf-8")).hexdigest() != text_sha256:
-            return None
-        pos += body_len
-        if idx + 1 < len(windows):
-            if not rendered.startswith("\n", pos):
-                return None
-            pos += 1
-        parsed.append((win, body))
-    if pos != total:
-        return None
-    return parsed
-
-
-def _authenticated_source_text(ev):
-    if not isinstance(ev, dict):
-        return ""
-    parsed = _parse_authenticated_windows(ev)
-    if parsed is not None:
-        return "\n".join(body for _, body in parsed)
-    raw = ev.get("source_text")
-    return raw if isinstance(raw, str) else ""
-
-
-def _authenticated_quote_status(quote, ev):
-    parsed = _parse_authenticated_windows(ev)
-    if parsed is None:
-        return quote_status(quote, ev.get("source_text") if isinstance(ev, dict) else ev)
-    if quote is None:
-        return "not_supplied"
-    clean_quote = strip_terminal_escapes(quote)
-    if quote_length(clean_quote) < MIN_QUOTE_CHARS:
-        return "too_short"
-    total_hits = 0
-    for _, body in parsed:
-        first = body.find(clean_quote)
-        if first >= 0:
-            total_hits += 1
-            if total_hits > 1 or body.find(clean_quote, first + 1) >= 0:
-                return "ambiguous"
-    if total_hits == 0:
-        return "mismatch"
-    return "matched"
-
-
-def strip_terminal_escapes(text):
-    if not isinstance(text, str):
-        return ""
-    cleaned = ANSI_ESCAPE_RE.sub("", text)
-    return "".join(c for c in cleaned if c not in "\x07\x08\x0b\x0c\ufeff")
-
-
-def text_content(content):
-    # PDF/archives and NUL-bearing buffers must not masquerade as read UTF-8 text.
-    if content.startswith(BINARY_SIGNATURES) or b"\x00" in content:
-        return None
-    try:
-        value = content.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-    value = strip_terminal_escapes(value)
-    if any(ord(c) < 32 and c not in "\n\r\t" for c in value):
-        return None
-    return value
-
-
 def _is_cjk_char(ch):
     code = ord(ch)
     return (
@@ -568,6 +480,224 @@ def substantive_reason(value):
     return quote_length(visible) >= 6
 
 
+NO_REVERSAL_REFUSAL_RE = re.compile(
+    r"(?:"
+    r"无需(?:改判|重新评估|调整|修改)|不会(?:改判|改变|推翻)|不可(?:改判|推翻)|无改判条件|不存在改判条件|此结论(?:不会改变|永远成立|不变)|暂不(?:改判|做改判)"
+    r"|\bno\s+(?:reversal|condition|change)\b|\bcannot\s+be\s+(?:reversed|changed|overturned)\b|\bwill\s+not\s+(?:change|reverse)\b|\bnever\s+(?:changes|reverses)\b"
+    r")",
+    re.I,
+)
+VACUOUS_DEFERRAL_RE = re.compile(
+    r"(?:"
+    r"(?:未来|今后|日后|后续|将来|以后|待|有待|尚待|需待|等待|当|若|如果|一旦|随着)?[\u4e00-\u9fff，,、\s]{0,12}"
+    r"(?:有|出现|获得|取得|积累|补充|开展|进行|完成|发表|公布|提供)?(?:了)?"
+    r"(?:更多|进一步|更大规模|多中心|后续|未来|新|新的|额外|更充分|深入|长期)(?:的)?"
+    r"(?:研究|数据|证据|资料|试验|实验|样本|队列|结果|分析|观察|工作|文献|报告|验证|确认|探索)"
+    r"|(?:有待|尚待|需待|等待|待|需要|尚需|仍需|有赖于|取决于|视)[\u4e00-\u9fff，,、\s]{0,12}"
+    r"(?:进一步|更多|后续|未来|深入|长期)?(?:的)?"
+    r"(?:研究|数据|证据|资料|试验|实验|样本|验证|确认|评估|评价|观察|探索|分析|工作|讨论|探讨|考察|检验|情况)"
+    r"|(?:再|重新|另行|日后|未来|后续|进一步)(?:进行|作|予以|加以)?(?:重新)?"
+    r"(?:评估|评价|评判|判断|裁决|考量|审视|确认|验证|研究|讨论|探讨|分析|定论)"
+    r"|(?:以后再看|日后再议|目前尚不明确|尚不明确|尚难判断|尚难定论|看后续情况)"
+    r"|\b(?:when|once|after|if|as|until|pending|awaiting|upon|with|subject\s+to)?\s*(?:there\s+(?:are|is)\s+)?"
+    r"(?:more|further|additional|future|larger|broader|subsequent|new|later|extended|follow[- ]?up|confirmatory)\s+"
+    r"(?:(?:independent|external|multi[- ]?center|multicentre|clinical|prospective|empirical|scientific)\s+)*"
+    r"(?:studies|study|research|data|evidence|trials?|experiments?|samples?|cohorts?|analyses|analysis|results?|investigations?|work|literature|reports?|observations?|validation|confirmation|replication|evaluations?)\b"
+    r"|\b(?:more|further|additional|future)\s+(?:studies|study|research|data|evidence|trials?|validation|confirmation|investigation|work|evaluation)\s+"
+    r"(?:are|is|will\s+be|would\s+be|may\s+be)?\s*(?:needed|required|necessary|warranted|awaited|pending|conducted|available|obtained|collected)\b"
+    r"|\b(?:re[- ]?evaluat(?:e|ed|ing|ion)|reassess(?:ed|ing|ment)?|reconsider(?:ed|ing)?|revisit(?:ed|ing)?|review(?:ed|ing)?|clarif(?:y|ied)|determin(?:e|ed)|confirm(?:ed)?|verif(?:y|ied))\s+"
+    r"(?:in\s+the\s+future|later|when\s+more|once\s+more|with\s+more|with\s+further|after\s+further|after\s+more|pending\s+further)\b"
+    r"|\b(?:wait\s+and\s+see|remains?\s+to\s+be\s+seen|to\s+be\s+determined(?:\s+later)?|it\s+depends|depends\s+on\s+future)\b"
+    r")",
+    re.I,
+)
+CONCRETE_REVERSAL_SIGNAL_RE = re.compile(
+    r"(?:"
+    r"\b\d+\.\d+\b"
+    r"|(?:[<>≤≥≠=]+|below|above|exceeds|under|over)\s*[-+]?\d+(?:\.\d+)?\s*%"
+    r"|\b(?:hr|or|rr|irr|rd|auroc|auc|rmse|mae|r2|f1|logfc|beta|p|alpha|ci|effect|estimate|hazard|odds|risk|correlation)\s*(?:[<>≤≥≠=]+|is|exceeds|below|above|drops|rises)\s*[-+]?\d"
+    r"|\b(?:hr|rr|irr|rd|risk\s+diff\w*|mean\s+diff\w*|odds\s+ratio|hazard\s+ratio|auroc|auc|rmse|mae|r2|f1|logfc|beta|p[-_ ]?value|ci|confidence\s+interval|credible\s+interval|e[- ]?value|i\^?2|alpha|threshold|margin|bound|bounds|band)\b"
+    r"|\b(?:null|zero|no\s+effect|no\s+difference|no\s+benefit|no\s+association|no\s+phosphorylation|non[- ]?significant|insignificant|fail|fails|failed|failure|drop|drops|dropped|decline|declines|decrease|decreases|lower|higher|increase|increases|reverse|reversed|reverses|bias\s+reversal|reversal\s+trigger|flip|flips|flipped|opposite|contrary|contradict\w*|refut\w+|falsif\w+|disprov\w+|inconsistent|mismatch\w*|discrepanc\w+|alter|altered|corrupt\w*|tamper\w*|bias\w*|confound\w*|inflation|attenuat\w+|abolish\w+|harm|harms|toxicity|adverse|negative|positive|worse|inferior|non[- ]?inferior|equivalen\w+|invalid\w*|violat\w*|breach\w*|counterexample\w*|deviat\w*|shift\w*|off[- ]?target|error\w*|crash\w*|overturn\w*|withdraw\w*|retract\w*|cross(?:es|ed|ing)?\s+(?:null|reversal|trigger)|exclud(?:es|ed|ing)?\s+null)\b"
+    r"|\b(?:check|checks|quality|batch|unit|assumptions|multiplicity|leakage|baseline|sensitivity|placebo|negative[- ]control|estimand|calibration|utility|checksum|sha256|hash|quote|anchor\w*|excerpt\w*|binary|extract\w*|fork\w*|seed\w*|non[- ]?synthetic|empirical|concrete\s+test|readable|tail\s+summary|tail\s+consistency|different\s+(?:fixture|source|run|primary\s+observation|value|result|direction|outcome|estimate|record)|chang(?:e|es|ed|ing)\s+(?:direction|sign|verdict|status|outcome|estimate|result)|mutant|knockout|perturbation|rescue|ablation|holdout|cross[- ]?validation|decontaminat\w*|lemma|theorem|proof|axiom|member[- ]?checking|triangulat\w*|coding|regression|smoke\s+test|preregister\w*|protocol|trigger)\b"
+    r"|(?:置信区间|可信区间|跨零|包含零|排除零|效应量|效应值|风险比|比值比|相对危险度|相关系数|区分度|校准|决策效用|效用|阈值|界值|下限|上限|非劣|等效)"
+    r"|(?:零效应|无效应|无显著|无差异|不显著|无获益|未见|消失|减弱|衰减|偏离|偏移|失败|未通过|不通过|不达标|未达|失效|下降|降低|跌破|低于|高于|升高|上升|超过|不足|反转|逆转|相反|反向|推翻|证伪|反驳|否定|矛盾|相悖|冲突|不一致|不符|偏差|偏倚|混杂|伪影|泄漏|篡改|损坏|缺失|阴性|阳性|有害|毒性|不良|恶化|无效|不成立|撤回|反例|漏洞|错误|误差|崩溃|异常|仍发生|不同(?:数值|结果|方向|结论|记录|来源|样本))"
+    r"|(?:质控|批次|独立重复|分析单位|方法前提|多重比较|多重校正|基线|阴性对照|安慰剂|敏感度|哈希|校验和|摘录|锚点|二进制|提取|分叉|种子|非合成|真实经验|可读|敲除|突变|脱靶|救援|正交|引理|定理|证明|公理|三角互证|编码|污染|去污染|回归测试|单元测试|集成测试|宿主验收|预注册|复测)"
+    r")",
+    re.I,
+)
+UPPER_OR_METRIC_RE = re.compile(r"\bOR\b")
+# Stronger observable falsification signals required to rescue a text that also contains generic deferral phrasing.
+STRONG_REVERSAL_SIGNAL_RE = re.compile(
+    r"(?:"
+    r"\b\d+\.\d+\b"
+    r"|(?:[<>≤≥≠=]+|below|above|exceeds|under|over)\s*[-+]?\d+(?:\.\d+)?\s*%"
+    r"|\b(?:hr|or|rr|irr|rd|auroc|auc|rmse|mae|r2|f1|logfc|beta|p|alpha|ci|e[- ]?value|deff|icc|mde|tost)\s*(?:[<>≤≥≠=]+|is|exceeds|below|above|drops|rises)\s*[-+]?\d"
+    r"|\b(?:hr|rr|irr|rd|auroc|auc|rmse|mae|r2|f1|logfc|e[- ]?value|i\^?2|tost|mde|deff)\b"
+    r"|\b(?:cross(?:es|ed|ing)?\s+(?:null|1(?:\.0+)?|0(?:\.0+)?)|exclud(?:es|ed|ing)?\s+null|reverse[sd]?|flip(?:s|ped)?|abolish(?:es|ed)?|fail(?:s|ed)?\s+(?:check|replication|sensitivity|placebo|negative[- ]control)|negative[- ]control\s+(?:signal|positive|fails?)|knockout|perturbation|rescue|ablation|counterexample)\b"
+    r"|(?:置信区间|可信区间|跨零|包含零|排除零|风险比|比值比|相对危险度|区分度|校准斜率|效用|阈值|界值|非劣|等效)"
+    r"|(?:跌破|低于|高于|超过|反转|逆转|推翻|证伪|反例|敲除|突变|脱靶|救援|正交|阴性对照(?:阳性|失败|出现信号)|检验失败|检查(?:失败|变更|不通过))"
+    r")",
+    re.I,
+)
+FALSE_BALANCE_RE = re.compile(
+    r"(?:"
+    r"\bboth\s+(?:sides|views|explanations|hypotheses)\s+(?:have\s+merit|(?:are|remain)\s+equally\s+(?:plausible|possible|supported))\b"
+    r"|\b(?:is|are|remains?)\s+just\s+as\s+(?:well\s+supported|plausible|likely)\b"
+    r"|(?:两种|各方)(?:解释|观点|假说)(?:均有道理|同样可能|同等有据)"
+    r"|(?:解释|观点|假说)(?:也|仍)同样(?:可能|有据|得到支持)"
+    r")",
+    re.I | re.S,
+)
+
+
+def has_concrete_reversal_signal(value):
+    if not isinstance(value, str):
+        return False
+    if NO_REVERSAL_REFUSAL_RE.search(value):
+        return False
+    return bool(CONCRETE_REVERSAL_SIGNAL_RE.search(value) or UPPER_OR_METRIC_RE.search(value))
+
+
+def has_strong_reversal_signal(value):
+    if not isinstance(value, str):
+        return False
+    if NO_REVERSAL_REFUSAL_RE.search(value):
+        return False
+    return bool(STRONG_REVERSAL_SIGNAL_RE.search(value) or UPPER_OR_METRIC_RE.search(value))
+
+
+def is_vacuous_reversal_condition(value):
+    if not substantive_reason(value):
+        return True
+    if BOILERPLATE_OVERHEDGING_RE.search(value) or NO_REVERSAL_REFUSAL_RE.search(value):
+        return True
+    if VACUOUS_DEFERRAL_RE.search(value) and not has_strong_reversal_signal(value):
+        return True
+    return not has_concrete_reversal_signal(value)
+
+
+def validate_abstention_justification(value, known_evidence, label="decision.abstention_justification"):
+    """Validate structured justification required to rebut enforced symmetry challenges."""
+    rec = obj(value, label)
+    fields(rec, {"blocking_gaps", "counterevidence_ids", "reason"}, {"blocking_gaps", "reason"}, label)
+    gaps = array(rec["blocking_gaps"], f"{label}.blocking_gaps", minimum=1, maximum=10)
+    cleaned_gaps = []
+    for idx, gap in enumerate(gaps):
+        txt = validate_non_placeholder_text(gap, f"{label}.blocking_gaps[{idx}]")
+        if BOILERPLATE_OVERHEDGING_RE.search(txt) or (VACUOUS_DEFERRAL_RE.search(txt) and not has_strong_reversal_signal(txt)):
+            fail(
+                "invalid_abstention_justification",
+                f"{label}.blocking_gaps[{idx}] must name a concrete unmodeled flaw, confounder, or missing empirical test, not generic deferral boilerplate",
+            )
+        cleaned_gaps.append(txt)
+    reason = validate_rationale(rec["reason"], f"{label}.reason")
+    if BOILERPLATE_OVERHEDGING_RE.search(reason):
+        fail(
+            "invalid_abstention_justification",
+            f"{label}.reason cannot rely on generic over-hedging boilerplate",
+        )
+    ce_ids = ids(rec.get("counterevidence_ids", []), f"{label}.counterevidence_ids", minimum=0, maximum=50)
+    if not set(ce_ids) <= set(known_evidence):
+        fail("unknown_reference", f"{label}.counterevidence_ids references unregistered evidence IDs")
+    return {"blocking_gaps": cleaned_gaps, "counterevidence_ids": ce_ids, "reason": reason}
+
+
+def validate_evidence_dominance(value, label="decision.evidence_dominance"):
+    """Validate optional structured dominance assessment opposing hollow-neutrality false balance."""
+    rec = obj(value, label)
+    required = {"favored_explanation", "rival_explanation", "asymmetry_status", "basis"}
+    fields(rec, required, required, label)
+    return {
+        "favored_explanation": validate_non_placeholder_text(rec["favored_explanation"], f"{label}.favored_explanation"),
+        "rival_explanation": validate_non_placeholder_text(rec["rival_explanation"], f"{label}.rival_explanation"),
+        "asymmetry_status": enum(
+            rec["asymmetry_status"],
+            ("dominant", "conditionally_dominant", "balanced_unresolved", "genuinely_unresolved"),
+            f"{label}.asymmetry_status",
+        ),
+        "basis": validate_rationale(rec["basis"], f"{label}.basis"),
+    }
+
+
+def is_vacuous_rationale(value):
+    if not meaningful(value):
+        return True
+    visible = "".join(c for c in value if not unicodedata.category(c).startswith("C")).strip()
+    cleaned = "".join(c for c in visible if c.isalnum() or c.isspace()).strip().upper()
+    if not cleaned or cleaned in TRIVIAL_REASONS:
+        return True
+    if NO_REVERSAL_REFUSAL_RE.search(value):
+        return True
+    if VACUOUS_DEFERRAL_RE.search(value) and not has_concrete_reversal_signal(value) and not BOILERPLATE_OVERHEDGING_RE.search(value):
+        return True
+    return False
+
+
+def validate_non_placeholder_text(value, label):
+    txt = string(value, label)
+    if not meaningful(txt):
+        fail("invalid_value", f"{label} cannot be empty, invisible, or a placeholder token")
+    visible = "".join(c for c in txt if not unicodedata.category(c).startswith("C")).strip()
+    cleaned = "".join(c for c in visible if c.isalnum() or c.isspace()).strip().upper()
+    if not cleaned or cleaned in TRIVIAL_REASONS:
+        fail("invalid_value", f"{label} must be a substantive statement, not a trivial label")
+    return txt
+
+
+def validate_rationale(value, label="decision.rationale"):
+    txt = string(value, label)
+    if is_vacuous_rationale(txt):
+        fail(
+            "invalid_rationale",
+            f"{label} must state a concrete evidence- or check-grounded reason, not a placeholder, trivial label, or generic future-study deferral",
+        )
+    return txt
+
+
+def validate_condition_text(value, label="decision.condition", *, missing_code="invalid_condition"):
+    txt = string(value, label)
+    if not meaningful(txt):
+        fail(missing_code, f"{label} must state an actual condition, not unknown or invisible text")
+    if (
+        not substantive_reason(txt)
+        or BOILERPLATE_OVERHEDGING_RE.search(txt)
+        or NO_REVERSAL_REFUSAL_RE.search(txt)
+        or (VACUOUS_DEFERRAL_RE.search(txt) and not has_concrete_reversal_signal(txt))
+    ):
+        fail(
+            "invalid_condition",
+            f"{label} must state a concrete scope or assumption condition, not a trivial label or generic future-study deferral",
+        )
+    return txt
+
+
+def validate_reversal_condition(value, label="decision.reversal_condition", *, decision=None, claim=None):
+    txt = string(value, label)
+    if is_vacuous_reversal_condition(txt):
+        fail(
+            "invalid_reversal_condition",
+            f"{label} must state a concrete observable outcome, metric/threshold, direction change, or check/evidence event that would alter the judgment, not a placeholder or generic future-study deferral",
+        )
+    norm = " ".join(txt.split()).strip().lower()
+    duplicate_targets = []
+    if isinstance(decision, dict):
+        for k in ("revised_text", "rationale", "boundary"):
+            v = decision.get(k)
+            if isinstance(v, str) and v.strip():
+                duplicate_targets.append((f"decision.{k}", " ".join(v.split()).strip().lower()))
+    if isinstance(claim, dict):
+        v = claim.get("text")
+        if isinstance(v, str) and v.strip():
+            duplicate_targets.append(("claim.text", " ".join(v.split()).strip().lower()))
+    for dup_label, dup_norm in duplicate_targets:
+        if norm == dup_norm:
+            fail(
+                "invalid_reversal_condition",
+                f"{label} must state what observation or event would change the judgment, not duplicate {dup_label}",
+            )
+    return txt
+
+
 def effective_status(record, require_evidence=True):
     status = record.get("status", "unknown")
     if status == "fail":
@@ -579,35 +709,6 @@ def effective_status(record, require_evidence=True):
     if require_evidence and not record.get("evidence_ids"):
         return "unknown"
     return "pass"
-
-
-def quote_length(value):
-    # Whitespace, format controls, standalone combining marks and private-use
-    # codepoints cannot pad a short anchor. CJK ideographs carry ~2x lexical
-    # density per codepoint relative to ASCII letters, so each CJK character
-    # counts as 2 units (6 CJK characters == 12 units == MIN_QUOTE_CHARS).
-    total = 0
-    for c in value:
-        if c.isspace() or unicodedata.category(c)[0] in "CM":
-            continue
-        total += 2 if _is_cjk_char(c) else 1
-    return total
-
-
-def quote_status(quote, source):
-    if quote is None:
-        return "not_supplied"
-    clean_quote = strip_terminal_escapes(quote)
-    if quote_length(clean_quote) < MIN_QUOTE_CHARS:
-        return "too_short"
-    if source is None:
-        return "not_text"
-    first = source.find(clean_quote)
-    if first < 0:
-        return "mismatch"
-    if source.find(clean_quote, first + 1) >= 0:
-        return "ambiguous"
-    return "matched"
 
 
 def contradictory_evidence_kind(ev, counterfactual_gates=True):
@@ -706,37 +807,6 @@ def contradictory_evidence_kind(ev, counterfactual_gates=True):
     return None
 
 
-def _split_clauses(raw):
-    if not isinstance(raw, str) or not raw:
-        return []
-    clauses = []
-    buf = []
-    depth = 0
-    n = len(raw)
-    for idx, ch in enumerate(raw):
-        if ch in "([":
-            depth += 1
-        elif ch in ")]" and depth > 0:
-            depth -= 1
-        is_sep = ch in "\n;；。" or (depth == 0 and ch in ",，")
-        if not is_sep and ch == ".":
-            prev_is_d = idx > 0 and raw[idx - 1].isdigit()
-            next_is_d = idx + 1 < n and raw[idx + 1].isdigit()
-            if not (prev_is_d and next_is_d):
-                is_sep = True
-        if is_sep:
-            part = "".join(buf).strip()
-            if part:
-                clauses.append(part)
-            buf = []
-        else:
-            buf.append(ch)
-    tail = "".join(buf).strip()
-    if tail:
-        clauses.append(tail)
-    return clauses
-
-
 _SAFETY_OR_HOSP_CLAUSE_RE = re.compile(
     r"(?:\b(?:serious\s+)?adverse\s+events?\b|\b(?:treatment[- ]emergent\s+)?aes?\b|"
     r"\btoxicit(?:y|ies)\b|\btolerability\b|\bsafety(?:\s+(?:outcome|endpoint|profile|event|analysis)s?)?\b|"
@@ -772,35 +842,9 @@ _PRIOR_LITERATURE_CONTRAST_RE = re.compile(
 )
 
 
-def _strip_nonprimary_clauses(raw):
-    clauses = _split_clauses(raw)
-    if not clauses:
-        return raw or ""
-    kept = [
-        cl for cl in clauses
-        if not (NONPRIMARY_CLAUSE_RE.search(cl) and not PRIMARY_CLAUSE_OVERRIDE_RE.search(cl))
-    ]
-    if not kept:
-        return raw or ""
-    if len(kept) >= 2 and any(
-        _PRIMARY_EFFICACY_SIGNAL_RE.search(cl) and not _SAFETY_OR_HOSP_CLAUSE_RE.search(cl)
-        for cl in kept
-    ):
-        primary_filtered = [
-            cl for cl in kept
-            if not (_SAFETY_OR_HOSP_CLAUSE_RE.search(cl) and not PRIMARY_CLAUSE_OVERRIDE_RE.search(cl))
-        ]
-        if primary_filtered:
-            kept = primary_filtered
-    return "; ".join(kept)
-
-
-def contradictory_positive_evidence_text(ev, include_outcome_stripped=True):
-    parts = [
-        _strip_nonprimary_clauses(str(ev.get("quote") or "")),
-        _strip_nonprimary_clauses(_authenticated_source_text(ev)),
-    ]
-    raw = " ".join(p for p in parts if p).lower()
+def contradictory_positive_evidence_text(ev, include_outcome_stripped=True, *, focus_text=""):
+    parts = scoped_evidence_clauses(ev, focus_text)
+    raw = "; ".join(p for p in parts if p).lower()
     norm = re.sub(r"[\s_\-]+", " ", raw).strip()
     if not norm:
         return None
@@ -813,239 +857,9 @@ def contradictory_positive_evidence_text(ev, include_outcome_stripped=True):
         return "null_or_contradicting_evidence"
     if include_outcome_stripped and any(phrase in norm for phrase in OUTCOME_STRIPPED_EVIDENCE_PHRASES):
         return "outcome_stripped_or_pending_evidence"
+    if include_outcome_stripped and explicit_pending_outcome(parts):
+        return "outcome_stripped_or_pending_evidence"
     return None
-
-
-def _mask_metadata_noise(text):
-    if not isinstance(text, str) or not text:
-        return ""
-    cleaned = METADATA_LABEL_RE.sub(" ", text)
-    cleaned = ALPHA_LEVEL_RE.sub(" ", cleaned)
-    return cleaned
-
-
-def _clause_bounds(text, pos):
-    left = 0
-    for idx in range(pos - 1, -1, -1):
-        ch = text[idx]
-        if ch in "\n;；。" or (ch == "." and not (idx > 0 and idx + 1 < len(text) and text[idx - 1].isdigit() and text[idx + 1].isdigit())):
-            left = idx + 1
-            break
-    right = len(text)
-    for idx in range(pos, len(text)):
-        ch = text[idx]
-        if ch in "\n;；。" or (ch == "." and not (idx > 0 and idx + 1 < len(text) and text[idx - 1].isdigit() and text[idx + 1].isdigit())):
-            right = idx
-            break
-    return text[left:right]
-
-
-def _extract_signed_tokens(text, reduction_hint=False):
-    if not isinstance(text, str) or not text:
-        return []
-    norm = text.replace("\u2212", "-")
-    tokens = []
-    for m in re.finditer(r"(?<![A-Za-z])(\d+(?:,\d{3})*(?:\.\d+)?)(?![A-Za-z])", norm):
-        start = m.start()
-        val = float(m.group(1).replace(",", ""))
-        sign = None
-        if start > 0 and norm[start - 1] in "+-":
-            prev = norm[start - 2] if start >= 2 else " "
-            if not prev.isdigit() and prev != "%":
-                sign = norm[start - 1]
-        prefix = norm[max(0, start - 20):start]
-        is_pval = bool(re.search(r"(?:\bp\b(?:\s*-?\s*value)?|pval)\s*(?:=|<|>|<=|>=|:|\bof\b)\s*[+-]?$", prefix, re.I))
-        clause = _clause_bounds(norm, start)
-        has_inc = bool(INCREASE_POLARITY_RE.search(clause))
-        has_red = bool(DECREASE_POLARITY_RE.search(clause)) or (reduction_hint and sign is None and not has_inc)
-        has_inc = has_inc and not has_red
-        tokens.append({
-            "val": val,
-            "sign": sign,
-            "is_pval": is_pval,
-            "reduction": has_red,
-            "increase": has_inc,
-            "start": start,
-        })
-    return tokens
-
-
-def _extract_floats(text):
-    return [tok["val"] for tok in _extract_signed_tokens(text)]
-
-
-def _claimed_effect_tokens(claim, decision):
-    tokens = []
-    est_text = str(claim.get("effect", {}).get("estimate") or "")
-    unc_text = str(claim.get("effect", {}).get("uncertainty") or "")
-    rev_text = str(decision.get("revised_text") or claim.get("text") or "")
-    rev_primary = _strip_nonprimary_clauses(rev_text)
-    claim_has_red = bool(DECREASE_POLARITY_RE.search(est_text) or DECREASE_POLARITY_RE.search(rev_primary))
-    for tok in _extract_signed_tokens(est_text, reduction_hint=claim_has_red):
-        if tok["val"] != 0.0 or tok["sign"] is not None:
-            tokens.append(tok)
-    for m in re.finditer(r"(?:95%|90%|99%)\s*CI\s*(\[[^\]]+\]|[^\n;)]*)", unc_text, re.I):
-        tokens.extend(_extract_signed_tokens(m.group(1), reduction_hint=claim_has_red))
-    for m in re.finditer(r"(?:95%|90%|99%)\s*CI\s*(\[[^\]]+\]|[^\n;)]*)", rev_text, re.I):
-        clause = _clause_bounds(rev_text, m.start())
-        tokens.extend(_extract_signed_tokens(m.group(1), reduction_hint=bool(DECREASE_POLARITY_RE.search(clause))))
-    rev_norm = rev_text.replace("\u2212", "-")
-    metric_patterns = (
-        r"\b(?:HR|OR|RR|RD|ATT|LATE|AUROC|AUC|F1|macro-F1|O/E|slope|Brier|delta|difference|effect|estimate|gain)\b"
-        r"\s*(?:=|:|\bis\b|\bof\b|\bwas\b|达|为)?\s*([+-]?\d+(?:,\d{3})*(?:\.\d+)?)(?![A-Za-z])",
-        r"\b(?:by|reduction|reduced|reduces|improves|improved|increased|increases|blocks|abolishes|lowers|lowered|decreased|decreases|gain)\s+"
-        r"(?:[\w\-]+\s+){0,4}?(?:by\s+|of\s+)?([+-]?\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:%|percentage points|points|mmHg|days|minutes)\b",
-        r"([+-]?\d+(?:,\d{3})*(?:\.\d+)?)\s*%\s*(?:reduction|increase|improvement|drop|gain|decrease)",
-        r"(?:^|[\s(=,:\[;])([+-]\d+(?:,\d{3})*(?:\.\d+)?)(?![A-Za-z])",
-    )
-    for pat in metric_patterns:
-        for m in re.finditer(pat, rev_norm, re.I):
-            raw_num = m.group(1)
-            sign = raw_num[0] if raw_num[0] in "+-" else None
-            val = float((raw_num[1:] if sign else raw_num).replace(",", ""))
-            clause = _clause_bounds(rev_norm, m.start(1))
-            has_red = bool(DECREASE_POLARITY_RE.search(clause))
-            has_inc = bool(INCREASE_POLARITY_RE.search(clause)) and not has_red
-            tokens.append({
-                "val": val,
-                "sign": sign,
-                "is_pval": False,
-                "reduction": has_red,
-                "increase": has_inc,
-            })
-    seen = set()
-    unique = []
-    for tok in tokens:
-        key = (round(tok["val"], 6), tok["sign"], tok["is_pval"], tok["reduction"], tok["increase"])
-        if key not in seen:
-            seen.add(key)
-            unique.append(tok)
-    return unique
-
-
-def _claimed_effect_numbers(claim, decision):
-    return [tok["val"] for tok in _claimed_effect_tokens(claim, decision)]
-
-
-def _val_close(target_val, src_val):
-    tol = 0.5 if target_val >= 10.0 and float(target_val).is_integer() else 0.05
-    return abs(target_val - src_val) <= tol
-
-
-def _number_matches_source(target_val, source_floats):
-    return any(_val_close(target_val, src_val) for src_val in source_floats)
-
-
-def _token_matches_source(claimed, source_tokens):
-    if claimed["is_pval"]:
-        return any(_val_close(claimed["val"], s["val"]) for s in source_tokens)
-    cands = [s for s in source_tokens if not s["is_pval"] and _val_close(claimed["val"], s["val"])]
-    if not cands:
-        return False
-    if claimed["val"] == 0.0 and claimed["sign"] is None:
-        return True
-    if claimed["sign"] == "-":
-        return any(s["sign"] == "-" or (s["sign"] is None and s["reduction"]) for s in cands)
-    if claimed["sign"] == "+" or (claimed["sign"] is None and claimed["increase"]):
-        return any(s["sign"] in ("+", None) and not s["reduction"] for s in cands)
-    if claimed["reduction"]:
-        return any(s["sign"] == "-" or (s["sign"] is None and not s["increase"]) for s in cands)
-    return any(s["sign"] in ("+", None) and not s["reduction"] for s in cands)
-
-
-def _priority_text_for_evidence(ev, linked_locators):
-    chunks = []
-    quote = str(ev.get("quote") or "")
-    if quote:
-        chunks.append(_mask_metadata_noise(_strip_nonprimary_clauses(quote)))
-    parsed = _parse_authenticated_windows(ev)
-    if parsed is not None:
-        if quote:
-            for _, body in parsed:
-                pos = body.find(quote)
-                if pos >= 0:
-                    win_slice = body[max(0, pos - 120):min(len(body), pos + len(quote) + 300)]
-                    chunks.append(_mask_metadata_noise(_strip_nonprimary_clauses(win_slice)))
-                    break
-        if linked_locators:
-            line_map = {}
-            for win, body in parsed:
-                cur_line = win["start_line"]
-                for ln in body.split("\n"):
-                    if cur_line <= win["end_line"]:
-                        line_map[cur_line] = ln.rstrip("\r")
-                    cur_line += 1
-            for loc in linked_locators:
-                for m in re.finditer(r"(?:line|:L)\s*(\d+)", loc, re.I):
-                    line_no = int(m.group(1))
-                    if line_no in line_map:
-                        chunks.append(_mask_metadata_noise(_strip_nonprimary_clauses(line_map[line_no])))
-    else:
-        src_raw = str(ev.get("source_text") or "")
-        if quote and src_raw:
-            pos = src_raw.find(quote)
-            if pos >= 0:
-                win = src_raw[max(0, pos - 120):min(len(src_raw), pos + len(quote) + 300)]
-                chunks.append(_mask_metadata_noise(_strip_nonprimary_clauses(win)))
-        if linked_locators and src_raw:
-            lines = src_raw.split("\n")
-            for loc in linked_locators:
-                for m in re.finditer(r"(?:line|:L)\s*(\d+)", loc, re.I):
-                    idx = int(m.group(1)) - 1
-                    if 0 <= idx < len(lines):
-                        chunks.append(_mask_metadata_noise(_strip_nonprimary_clauses(lines[idx].rstrip("\r"))))
-    return "\n".join(c for c in chunks if c)
-
-
-def effect_numbers_anchored(claim, decision, cited_evidence):
-    claimed_tokens = _claimed_effect_tokens(claim, decision)
-    if not claimed_tokens:
-        return True
-    decision_refs = set(decision.get("evidence_ids") or ())
-    linked_num_cards = [
-        c for c in claim.get("provenance_cards", {}).get("number", [])
-        if isinstance(c, dict)
-        and c.get("status") in ("reported", "checked")
-        and (set(c.get("evidence_ids") or ()) & decision_refs)
-    ]
-    linked_locators = [
-        str(c.get("details", {}).get("locator") or "")
-        for c in linked_num_cards
-        if isinstance(c.get("details"), dict)
-    ]
-    priority_tokens = []
-    source_tokens = []
-    for ev in cited_evidence:
-        p_text = _priority_text_for_evidence(ev, linked_locators)
-        if p_text:
-            priority_tokens.extend(_extract_signed_tokens(p_text))
-        s_clean = _mask_metadata_noise(_strip_nonprimary_clauses(_authenticated_source_text(ev)))
-        q_clean = _mask_metadata_noise(_strip_nonprimary_clauses(str(ev.get("quote") or "")))
-        if s_clean:
-            source_tokens.extend(_extract_signed_tokens(s_clean))
-        if q_clean:
-            source_tokens.extend(_extract_signed_tokens(q_clean))
-    if not source_tokens and not priority_tokens:
-        return False
-    all_source = priority_tokens + source_tokens
-    for card in linked_num_cards:
-        if card.get("status") != "checked" or not isinstance(card.get("details"), dict):
-            continue
-        card_text = " ".join(str(card["details"].get(k) or "") for k in ("value", "uncertainty"))
-        for ctok in _extract_signed_tokens(_mask_metadata_noise(card_text)):
-            if _token_matches_source(ctok, all_source):
-                priority_tokens.append(ctok)
-    for tok in claimed_tokens:
-        has_priority_mag = any(
-            (tok["is_pval"] or not s["is_pval"]) and _val_close(tok["val"], s["val"])
-            for s in priority_tokens
-        )
-        if has_priority_mag:
-            if not _token_matches_source(tok, priority_tokens):
-                return False
-        elif not _token_matches_source(tok, all_source):
-            return False
-    return True
 
 
 def is_recorded_exec_evidence(ev):
@@ -1067,7 +881,10 @@ def _exec_text_tag(text, key):
 
 def execution_fork_info(claim, evidence, exec_events=None):
     claim_id = claim.get("id")
-    raw_cards = claim.get("provenance_cards", {}).get("execution", [])
+    provenance_cards = claim.get("provenance_cards")
+    raw_cards = provenance_cards.get("execution") if isinstance(provenance_cards, dict) else []
+    if not isinstance(raw_cards, list):
+        raw_cards = []
     card_groups = {
         c.get("details", {}).get("run_group")
         for c in raw_cards
@@ -1232,7 +1049,10 @@ def collect_lexical_advisories(record, claim, evidence, exec_events=None):
             if isinstance(e, dict) and e.get("evidence_id")
         }
     cid = record.get("claim_id") or claim.get("id") or claim.get("claim_id") or ""
-    refs = list(dict.fromkeys(record.get("evidence_ids") or claim.get("evidence_ids") or ()))
+    rec_eids = record.get("evidence_ids")
+    claim_eids = claim.get("evidence_ids")
+    raw_ref_seq = rec_eids if isinstance(rec_eids, (list, tuple)) and rec_eids else (claim_eids if isinstance(claim_eids, (list, tuple)) else ())
+    refs = list(dict.fromkeys(r for r in raw_ref_seq if isinstance(r, (str, int)) and not isinstance(r, bool)))
     advisories = []
     seen = set()
 
@@ -1256,7 +1076,11 @@ def collect_lexical_advisories(record, claim, evidence, exec_events=None):
         ev = by_evidence.get(ref)
         if not ev:
             continue
+        focus_text = str(record.get("revised_text") or claim.get("text") or "")
+        clauses = scoped_evidence_clauses(ev, focus_text)
         kind_contra = contradictory_evidence_kind(ev)
+        if not kind_contra and explicit_generated_source(ev, clauses):
+            kind_contra = "synthetic_source_declared_as_empirical"
         if kind_contra:
             _add(
                 "possible_evidence_kind_mismatch",
@@ -1264,7 +1088,7 @@ def collect_lexical_advisories(record, claim, evidence, exec_events=None):
                 f"Evidence '{ref}' contains lexical cues potentially conflicting with declared kind '{ev.get('kind')}' ({kind_contra}).",
                 [ref],
             )
-        text_contra = contradictory_positive_evidence_text(ev, include_outcome_stripped=True)
+        text_contra = contradictory_positive_evidence_text(ev, include_outcome_stripped=True, focus_text=focus_text)
         if text_contra == "outcome_stripped_or_pending_evidence":
             _add(
                 "possible_outcome_pending_text",
@@ -1295,11 +1119,15 @@ def collect_lexical_advisories(record, claim, evidence, exec_events=None):
             list(dict.fromkeys([*info["card_ev_ids"], *refs])),
         )
     if info["fork_count"] > 1:
-        mult_check = claim.get("checks", {}).get("multiplicity", {})
-        mult_stat = claim.get("statistical_report", {}).get("multiplicity_selection", {})
+        checks = claim.get("checks")
+        mult_check = checks.get("multiplicity") if isinstance(checks, dict) and isinstance(checks.get("multiplicity"), dict) else {}
+        stat_report = claim.get("statistical_report")
+        mult_stat = stat_report.get("multiplicity_selection") if isinstance(stat_report, dict) and isinstance(stat_report.get("multiplicity_selection"), dict) else {}
         reasons_lower = f"{mult_check.get('reason', '')} {mult_stat.get('reason', '')}".lower()
         accounting_text = f"{reasons_lower} {record.get('revised_text', '')} {record.get('condition', '')}".lower()
-        fork_ev_ids = list(dict.fromkeys([*(mult_stat.get("evidence_ids") or ()), *info["card_ev_ids"], *refs]))
+        stat_eids = mult_stat.get("evidence_ids")
+        stat_eid_seq = [r for r in (stat_eids if isinstance(stat_eids, (list, tuple)) else ()) if isinstance(r, (str, int)) and not isinstance(r, bool)]
+        fork_ev_ids = list(dict.fromkeys([*stat_eid_seq, *info["card_ev_ids"], *refs]))
         if any(phrase in reasons_lower for phrase in FALSE_SINGLE_RUN_MULTIPLICITY_PHRASES):
             _add(
                 "possible_unadjusted_multiplicity_text",
@@ -1315,38 +1143,6 @@ def collect_lexical_advisories(record, claim, evidence, exec_events=None):
                 fork_ev_ids,
             )
     return advisories
-
-
-def quote_links_to_claim(ev, claim, decision):
-    quote = ev.get("quote") or ""
-    ev_id = ev.get("evidence_id")
-    parts = [
-        claim.get("text", ""),
-        decision.get("revised_text", ""),
-        claim.get("scope", ""),
-        decision.get("scope", ""),
-        claim.get("contribution", ""),
-        claim.get("effect", {}).get("estimate", ""),
-        claim.get("effect", {}).get("uncertainty", ""),
-    ]
-    for cards in claim.get("provenance_cards", {}).values():
-        for card in cards:
-            if card.get("status") == "checked" and (not ev_id or ev_id in card.get("evidence_ids", [])):
-                parts.extend(str(v) for v in card.get("details", {}).values())
-    target = " ".join(str(p) for p in parts if p)
-    q_nums = set(re.findall(r"\d+(?:\.\d+)?", quote))
-    t_nums = set(re.findall(r"\d+(?:\.\d+)?", target))
-    if q_nums & t_nums:
-        return True
-    q_words = {w for w in re.findall(r"[a-zA-Z]{4,}", quote.lower()) if w not in QUOTE_STOPWORDS}
-    t_words = {w for w in re.findall(r"[a-zA-Z]{4,}", target.lower()) if w not in QUOTE_STOPWORDS}
-    if q_words & t_words or ({w[:5] for w in q_words if len(w) >= 5} & {w[:5] for w in t_words if len(w) >= 5}):
-        return True
-    q_cjk = "".join(c for c in quote if "\u4e00" <= c <= "\u9fff")
-    t_cjk = "".join(c for c in target if "\u4e00" <= c <= "\u9fff")
-    q_bigrams = {q_cjk[i:i + 2] for i in range(len(q_cjk) - 1)} - CJK_STOPWORDS
-    t_bigrams = {t_cjk[i:i + 2] for i in range(len(t_cjk) - 1)} - CJK_STOPWORDS
-    return bool(q_bigrams & t_bigrams)
 
 
 def validate_basis(value):
@@ -1612,6 +1408,23 @@ def validate_mechanical(decision, claim, evidence, counterfactual_gates=True, fo
     compatible = COMPATIBILITY[kind].get(level, ())
     if obs_causal_ok:
         compatible = (*compatible, "observation")
+    # Runtime receipts and parsed numeric artifacts document execution/numbers,
+    # never the study design. They can accompany separately compatible evidence,
+    # but cannot be the sole basis for a positive classification.
+    has_design_source = any(evidence[ref].get("kind") in compatible for ref in decision["evidence_ids"])
+    recorded_receipts = {event.get("evidence_id") for event in (exec_events or [])}
+    supplemental = set()
+    if has_design_source:
+        for ref in decision["evidence_ids"]:
+            source = evidence[ref]
+            if source.get("kind") != "unknown" or not source.get("kind_inference"):
+                continue
+            if ref in recorded_receipts:
+                supplemental.add(ref)
+            elif source.get("artifact", {}).get("format") == "statistics" and any(
+                rec.get("evidence_id") == ref and rec.get("artifact_binding") for rec in claim.get("effect_records", [])
+            ):
+                supplemental.add(ref)
     for ref in decision["evidence_ids"]:
         ev = evidence[ref]
         lineage = evidence_lineage(ref, evidence)
@@ -1623,7 +1436,7 @@ def validate_mechanical(decision, claim, evidence, counterfactual_gates=True, fo
         synthetic = any(e.get("provenance") == "synthetic" or e.get("kind") == "synthetic" for e in chain_evs)
         if synthetic and decision["claim_basis"] != "synthetic":
             fail("synthetic_empirical_support", "synthetic evidence cannot support empirical or formal positive judgments")
-        if ev["kind"] not in compatible:
+        if ev["kind"] not in compatible and ref not in supplemental:
             fail("incompatible_evidence_kind", f"{ev['kind']} cannot support {kind} × {level}")
         status = ev.get("source_text_status")
         windowed_ok = status == "truncated" and bool(ev.get("excerpt_window", {}).get("quote_anchored"))
@@ -1641,7 +1454,7 @@ def validate_mechanical(decision, claim, evidence, counterfactual_gates=True, fo
     if fork_gates:
         validate_execution_forks(decision, claim, evidence, exec_events=exec_events)
     allowed_causal_kinds = (*CAUSAL_KINDS, "observation") if obs_causal_ok else CAUSAL_KINDS
-    if needs_causal_basis(decision) and not all(evidence[ref]["kind"] in allowed_causal_kinds for ref in decision["evidence_ids"]):
+    if needs_causal_basis(decision) and not all(evidence[ref]["kind"] in allowed_causal_kinds for ref in decision["evidence_ids"] if ref not in supplemental):
         fail("incompatible_evidence_kind", "causal positives require intervention/quasi-experiment evidence (or observational evidence with partially_supported verdict, condition, and evidenced confounding/robustness checks)")
     # Positive decisions must cite the evidence backing their required passing design and statistical checks.
     decision_refs = set(decision["evidence_ids"])
@@ -1669,7 +1482,7 @@ def validate_stances(value, claims, evidence, exec_events=None):
     for stance in array(value, "claim_stances", minimum=1, maximum=100):
         obj(stance, "stance")
         keys = {"claim_id", "stance", "rationale", "evidence_ids"}
-        fields(stance, keys | {"condition"}, keys, "stance")
+        fields(stance, keys | {"condition", "reversal_condition"}, keys, "stance")
         cid = string(stance["claim_id"], "stance.claim_id")
         if cid not in claims:
             fail("unknown_claim", "stance refers to a non-frozen claim")
@@ -1677,9 +1490,13 @@ def validate_stances(value, claims, evidence, exec_events=None):
         enum(stance["stance"], ("supported", "partially_supported", "unsupported", "insufficient_evidence"), "stance")
         if stance["stance"] == "partially_supported" and not meaningful(stance.get("condition")):
             fail("missing_stance_condition", "a conditionally supportive stance must specify its actual condition")
-        if "condition" in stance and not meaningful(stance["condition"]):
-            fail("missing_stance_condition", "condition cannot be empty, invisible or an unknown placeholder")
-        string(stance["rationale"], "stance.rationale")
+        if "condition" in stance:
+            if not meaningful(stance["condition"]):
+                fail("missing_stance_condition", "condition cannot be empty, invisible or an unknown placeholder")
+            validate_condition_text(stance["condition"], "stance.condition", missing_code="missing_stance_condition")
+        validate_rationale(stance["rationale"], "stance.rationale")
+        if "reversal_condition" in stance:
+            validate_reversal_condition(stance["reversal_condition"], "stance.reversal_condition", claim=claims[cid])
         refs = ids(stance["evidence_ids"], "stance.evidence_ids", minimum=1 if stance["stance"] in POSITIVE else 0)
         if not set(refs) <= set(claims[cid]["evidence_ids"]):
             fail("unknown_reference", "stance references evidence outside its claim")
@@ -1760,492 +1577,23 @@ def validate_disposition(disposition, finding, decision, original):
         if disposition["disposition"] == "partial" and not (anchor_tokens & salient_new):
             fail("finding_not_incorporated", "partial incorporation revised_text_quote must anchor the finding's issue-linked replacement terms, not an unrelated clause")
     if disposition["disposition"] == "accepted":
-        if finding["proposed_text"] not in decision["revised_text"]:
-            fail("finding_not_incorporated", "accepted incorporation requires the proposed text; deviations need explicit disagreement or partial adoption")
+        proposed_norm = " ".join(finding["proposed_text"].split())
+        revised_norm = " ".join(decision["revised_text"].split())
+        if not proposed_norm or proposed_norm not in revised_norm:
+            if finding["proposed_text"] not in decision["revised_text"]:
+                fail("finding_not_incorporated", "accepted incorporation requires the proposed text; deviations need explicit disagreement or partial adoption")
         for key in ("claim_type", "evidence_level", "scope", "claim_basis"):
             if finding["proposed_" + key] != decision[key]:
                 fail("finding_not_incorporated", "accepted classification/scope must match the decision, or record disagreement")
 
-
-def _iter_claim_check_records(claim):
-    checks = claim.get("checks") or {}
-    if not isinstance(checks, dict):
-        return
-    for key, val in checks.items():
-        if key in ("design", "statistics") and isinstance(val, dict):
-            for rec in val.values():
-                if isinstance(rec, dict):
-                    yield rec, True
-        elif isinstance(val, dict):
-            yield val, False
-
-
-def _has_contradicting_card(claim):
-    cards_by_kind = claim.get("provenance_cards") or {}
-    if not isinstance(cards_by_kind, dict):
-        return False
-    for cards in cards_by_kind.values():
-        if not isinstance(cards, list):
-            continue
-        for card in cards:
-            if not isinstance(card, dict):
-                continue
-            status = str(card.get("status") or "").strip().lower()
-            if status in ("fail", "failed", "contradicted", "refuted"):
-                return True
-            details = card.get("details") or {}
-            if not isinstance(details, dict):
-                continue
-            if is_contradicting_relation(details.get("support_relation")) or is_contradicting_relation(details.get("relation")):
-                return True
-            detail_text = " ".join(str(v) for v in details.values() if v is not None)
-            cleaned_detail = _strip_nonprimary_clauses(detail_text)
-            cleaned_detail = _REJECTED_NULL_RE.sub(" ", cleaned_detail)
-            cleaned_detail = _PRIOR_LITERATURE_CONTRAST_RE.sub(" ", cleaned_detail).lower()
-            norm = re.sub(r"[\s_\-]+", " ", cleaned_detail).strip()
-            norm = _REJECTED_NULL_RE.sub(" ", norm)
-            norm = _PRIOR_LITERATURE_CONTRAST_RE.sub(" ", norm)
-            for safe in NON_CONTRADICTING_NEGATIONS:
-                norm = norm.replace(safe, " ")
-            norm = re.sub(r"\s+", " ", norm).strip()
-            if any(phrase in norm for phrase in NULL_OR_REFUTING_EVIDENCE_PHRASES):
-                return True
-    return False
-
-
-def _has_failed_check(claim):
-    for rec, require_ev in _iter_claim_check_records(claim):
-        if rec.get("status") == "fail" or effective_status(rec, require_evidence=require_ev) == "fail":
-            return True
-    return False
-
-
-def _has_failed_check_or_contradiction(claim, candidate_evs, *, check_numeric_mismatch=False):
-    if _has_failed_check(claim) or _has_contradicting_card(claim):
-        return True
-    if check_numeric_mismatch and candidate_evs and _claimed_effect_tokens(claim, claim):
-        ev_ids = [e.get("evidence_id") for e in candidate_evs if e.get("evidence_id")]
-        if ev_ids and not effect_numbers_anchored(claim, {**claim, "evidence_ids": ev_ids}, candidate_evs):
-            return True
-    for ev in candidate_evs:
-        if contradictory_positive_evidence_text(ev, include_outcome_stripped=False):
-            return True
-    return False
-
-
-def _passes_positive_candidate(claim, record, candidate_refs, by_evidence, exec_events=None, *, verdict="supported", claim_type=None, evidence_level=None, claim_basis=None, scope=None, revised_text=None):
-    from .claims import validate_support
-    c_type = claim_type or record.get("claim_type") or claim.get("claim_type")
-    c_level = evidence_level or record.get("evidence_level") or claim.get("evidence_level")
-    c_basis = claim_basis or record.get("claim_basis") or claim.get("claim_basis")
-    c_scope = scope or record.get("scope") or claim.get("scope")
-    if c_type not in TYPE_LEVELS or c_level not in TYPE_LEVELS[c_type] or c_basis not in BASES:
-        return False
-    if not candidate_refs or not all(ref in by_evidence for ref in candidate_refs):
-        return False
-    candidate = {
-        **claim,
-        "claim_id": claim.get("id") or claim.get("claim_id") or record.get("claim_id"),
-        "claim_type": c_type,
-        "evidence_level": c_level,
-        "claim_basis": c_basis,
-        "scope": c_scope or claim.get("scope") or "",
-        "verdict": verdict,
-        "evidence_ids": list(candidate_refs),
-        "revised_text": revised_text or record.get("revised_text") or claim.get("text") or "",
-    }
-    if verdict == "partially_supported":
-        cond = record.get("condition") or c_scope or claim.get("scope") or "Bounded to evidenced scope"
-        candidate["condition"] = cond
-    try:
-        validate_basis(candidate)
-        validate_support(candidate, claim)
-        validate_mechanical(candidate, claim, by_evidence, exec_events=exec_events)
-    except (ContractError, KeyError, TypeError, ValueError):
-        return False
-    return True
-
-
-def _normalize_audit_inputs(records, claims, evidence, findings, dispositions):
-    if isinstance(claims, dict):
-        by_claim = {cid: c for cid, c in claims.items() if isinstance(c, dict)}
-    else:
-        by_claim = {}
-        for c in claims or ():
-            if isinstance(c, dict):
-                cid = c.get("id") or c.get("claim_id")
-                if cid:
-                    by_claim[cid] = c
-    if isinstance(evidence, dict):
-        by_evidence = {eid: e for eid, e in evidence.items() if isinstance(e, dict)}
-    else:
-        by_evidence = {
-            e["evidence_id"]: e
-            for e in (evidence or ())
-            if isinstance(e, dict) and e.get("evidence_id")
-        }
-    findings_list = []
-    if isinstance(findings, dict):
-        for role, block in findings.items():
-            items = block.get("findings") if isinstance(block, dict) else block
-            if isinstance(items, list):
-                for f in items:
-                    if isinstance(f, dict):
-                        findings_list.append({**f, "role": f.get("role", role)})
-    elif isinstance(findings, list):
-        findings_list = [f for f in findings if isinstance(f, dict)]
-    disp_by_finding = {
-        d["finding_id"]: d
-        for d in (dispositions or ())
-        if isinstance(d, dict) and d.get("finding_id")
-    }
-    records_list = list(records.values()) if isinstance(records, dict) else [r for r in (records or ()) if isinstance(r, dict)]
-    return by_claim, by_evidence, findings_list, disp_by_finding, records_list
-
-
-def audit_underclaim_and_abstention(records, claims, evidence, findings=None, dispositions=None, exec_events=None, *, is_review=False):
-    """Non-blocking advisory symmetry audit flagging potential false abstention or over-hedging.
-
-    Never raises ContractError and never blocks review, adjudication, or export.
-    """
-    flags = []
-    lexical_advisories = []
-    seen_lexical = set()
-    try:
-        by_claim, by_evidence, findings_list, disp_by_finding, records_list = _normalize_audit_inputs(
-            records, claims, evidence, findings, dispositions
-        )
-        by_record = {r.get("claim_id"): r for r in records_list if r.get("claim_id")}
-
-        for record in records_list:
-            try:
-                cid = record.get("claim_id")
-                claim = by_claim.get(cid)
-                if not claim:
-                    continue
-                if is_review or ("stance" in record and "verdict" not in record):
-                    observed_verdict = record.get("stance")
-                else:
-                    observed_verdict = record.get("verdict")
-                if not observed_verdict:
-                    continue
-
-                for adv in collect_lexical_advisories(record, claim, by_evidence, exec_events=exec_events):
-                    adv_key = (
-                        adv.get("claim_id"),
-                        adv.get("hook_code"),
-                        adv.get("detail_code"),
-                        tuple(adv.get("evidence_ids") or ()),
-                    )
-                    if adv_key not in seen_lexical:
-                        seen_lexical.add(adv_key)
-                        lexical_advisories.append(adv)
-
-                raw_refs = list(record.get("evidence_ids") or ())
-                claim_refs = list(claim.get("evidence_ids") or ())
-                probe_refs = list(dict.fromkeys([*raw_refs, *claim_refs]))
-                pos_refs = raw_refs if raw_refs else claim_refs
-                probe_evs = [by_evidence[r] for r in probe_refs if r in by_evidence]
-                has_blocker = _has_failed_check_or_contradiction(
-                    claim,
-                    probe_evs,
-                    check_numeric_mismatch=(observed_verdict == "unsupported"),
-                )
-
-                frozen_type = claim.get("claim_type")
-                frozen_level = claim.get("evidence_level")
-                cur_type = record.get("claim_type") or frozen_type
-                cur_level = record.get("evidence_level") or frozen_level
-                level_downgraded = False
-                if (
-                    not is_review
-                    and cur_type == frozen_type
-                    and cur_type in TYPE_LEVELS
-                    and frozen_level in TYPE_LEVELS[cur_type]
-                    and cur_level in TYPE_LEVELS[cur_type]
-                ):
-                    level_downgraded = TYPE_LEVELS[cur_type].index(cur_level) < TYPE_LEVELS[cur_type].index(frozen_level)
-
-                has_overclaim_justification = False
-                for f in findings_list:
-                    if f.get("claim_id") != cid:
-                        continue
-                    role = f.get("role")
-                    disp = disp_by_finding.get(f.get("id"))
-                    if role == "overclaim":
-                        if is_review or (disp and disp.get("disposition") in ("accepted", "partial")):
-                            has_overclaim_justification = True
-                            break
-                    elif role is None and disp and disp.get("disposition") in ("accepted", "partial"):
-                        if frozen_type in TYPE_LEVELS and f.get("proposed_evidence_level") in TYPE_LEVELS[frozen_type] and frozen_level in TYPE_LEVELS[frozen_type]:
-                            if TYPE_LEVELS[frozen_type].index(f["proposed_evidence_level"]) <= TYPE_LEVELS[frozen_type].index(frozen_level):
-                                has_overclaim_justification = True
-                                break
-
-                if observed_verdict == "insufficient_evidence" and claim_refs and not has_blocker and not has_overclaim_justification:
-                    cand_verdict = None
-                    for trial_verdict in ("supported", "partially_supported"):
-                        if _passes_positive_candidate(
-                            claim,
-                            record,
-                            probe_refs,
-                            by_evidence,
-                            exec_events,
-                            verdict=trial_verdict,
-                            claim_type=frozen_type,
-                            evidence_level=frozen_level,
-                            claim_basis=claim.get("claim_basis"),
-                            scope=claim.get("scope"),
-                            revised_text=claim.get("text"),
-                        ):
-                            cand_verdict = trial_verdict
-                            break
-                    if cand_verdict is not None:
-                        flags.append({
-                            "claim_id": cid,
-                            "hook_code": "possible_false_abstention",
-                            "severity": "advisory",
-                            "non_blocking": True,
-                            "observed_verdict": observed_verdict,
-                            "advisory_candidate_verdict": cand_verdict,
-                            "advisory_candidate_level": frozen_level,
-                            "message": f"Claim '{cid}' received 'insufficient_evidence' despite nonempty evidence {probe_refs} clearing support and mechanical gates for {frozen_type} x {frozen_level} ({cand_verdict}).",
-                            "evidence_ids": probe_refs,
-                        })
-
-                if observed_verdict in POSITIVE and not has_blocker and not has_overclaim_justification:
-                    cand_verdict = None
-                    cand_level = None
-                    if observed_verdict == "partially_supported":
-                        if level_downgraded and _passes_positive_candidate(
-                            claim, record, pos_refs, by_evidence, exec_events,
-                            verdict="supported", claim_type=frozen_type, evidence_level=frozen_level,
-                            claim_basis=claim.get("claim_basis"), scope=claim.get("scope"),
-                        ):
-                            cand_verdict, cand_level = "supported", frozen_level
-                        elif _passes_positive_candidate(
-                            claim, record, pos_refs, by_evidence, exec_events,
-                            verdict="supported", claim_type=cur_type, evidence_level=cur_level,
-                        ):
-                            cand_verdict, cand_level = "supported", cur_level
-                    if cand_verdict is None and level_downgraded:
-                        try:
-                            frozen_allowed = frozen_level in ceiling(claim, frozen_type)["allowed_levels"]
-                        except (ContractError, KeyError, TypeError, ValueError):
-                            frozen_allowed = False
-                        if frozen_allowed and _passes_positive_candidate(
-                            claim, record, pos_refs, by_evidence, exec_events,
-                            verdict=observed_verdict, claim_type=frozen_type, evidence_level=frozen_level,
-                            claim_basis=record.get("claim_basis") or claim.get("claim_basis"),
-                            scope=record.get("scope") or claim.get("scope"),
-                        ):
-                            cand_verdict, cand_level = observed_verdict, frozen_level
-                    if cand_verdict is not None:
-                        flags.append({
-                            "claim_id": cid,
-                            "hook_code": "possible_unjustified_downgrade",
-                            "severity": "advisory",
-                            "non_blocking": True,
-                            "observed_verdict": observed_verdict,
-                            "advisory_candidate_verdict": cand_verdict,
-                            "advisory_candidate_level": cand_level,
-                            "message": f"Claim '{cid}' was downgraded to {observed_verdict} ({cur_type} x {cur_level}) without failed checks or accepted overclaim justification; {cand_verdict} at {cand_level} clears mechanical gates.",
-                            "evidence_ids": pos_refs,
-                        })
-
-                emitted_effect_underclaim = False
-                if observed_verdict == "unsupported" and claim.get("effect_records"):
-                    try:
-                        from .effects import verify_effect_computations
-                        eff_probe = verify_effect_computations(
-                            claim,
-                            {**record, "verdict": "unsupported"},
-                            by_evidence,
-                        )
-                    except ContractError:
-                        eff_probe = None
-                    eff_adv = eff_probe.get("underclaim_advisory") if eff_probe else None
-                    if eff_adv and not (_has_failed_check(claim) or _has_contradicting_card(claim)):
-                        prim_refs = [eid for eid in eff_adv["primary_evidence_ids"] if eid in by_evidence]
-                        prim_evs = [by_evidence[eid] for eid in prim_refs]
-                        if prim_evs and not any(
-                            contradictory_positive_evidence_text(ev, include_outcome_stripped=False)
-                            for ev in prim_evs
-                        ):
-                            cand_verdict = None
-                            cand_level = None
-                            for trial_verdict in ("supported", "partially_supported"):
-                                if _passes_positive_candidate(
-                                    claim, record, prim_refs, by_evidence, exec_events,
-                                    verdict=trial_verdict, claim_type=frozen_type, evidence_level=frozen_level,
-                                    claim_basis=claim.get("claim_basis"), scope=claim.get("scope"),
-                                    revised_text=claim.get("text"),
-                                ):
-                                    cand_verdict, cand_level = trial_verdict, frozen_level
-                                    break
-                            flags.append({
-                                "claim_id": cid,
-                                "hook_code": "unsupported_despite_beneficial_primary_effect",
-                                "severity": "advisory",
-                                "non_blocking": True,
-                                "observed_verdict": observed_verdict,
-                                "advisory_candidate_verdict": cand_verdict or "insufficient_evidence",
-                                "advisory_candidate_level": cand_level,
-                                "message": eff_adv["message"],
-                                "evidence_ids": prim_refs,
-                                "primary_record_ids": eff_adv["primary_record_ids"],
-                            })
-                            emitted_effect_underclaim = True
-
-                if observed_verdict == "unsupported" and not has_blocker and not emitted_effect_underclaim:
-                    cand_verdict = None
-                    cand_level = None
-                    for trial_verdict in ("supported", "partially_supported"):
-                        if _passes_positive_candidate(
-                            claim, record, probe_refs, by_evidence, exec_events,
-                            verdict=trial_verdict, claim_type=frozen_type, evidence_level=frozen_level,
-                            claim_basis=claim.get("claim_basis"), scope=claim.get("scope"),
-                            revised_text=claim.get("text"),
-                        ):
-                            cand_verdict, cand_level = trial_verdict, frozen_level
-                            break
-                    flags.append({
-                        "claim_id": cid,
-                        "hook_code": "unsupported_without_counterevidence",
-                        "severity": "advisory",
-                        "non_blocking": True,
-                        "observed_verdict": observed_verdict,
-                        "advisory_candidate_verdict": cand_verdict or "insufficient_evidence",
-                        "advisory_candidate_level": cand_level,
-                        "message": f"Claim '{cid}' was marked 'unsupported' without failed checks, contradicting provenance cards, or null/refuting evidence text.",
-                        "evidence_ids": probe_refs,
-                    })
-
-                if (observed_verdict == "insufficient_evidence" or observed_verdict == "partially_supported" or level_downgraded) and not has_blocker:
-                    rec_text = " ".join(
-                        str(record.get(k) or "")
-                        for k in ("rationale", "revised_text", "boundary", "condition")
-                    )
-                    if BOILERPLATE_OVERHEDGING_RE.search(rec_text) and probe_evs:
-                        rec_rev = str(record.get("revised_text") or "")
-                        claim_rev = str(claim.get("text") or "")
-                        if observed_verdict == "insufficient_evidence":
-                            rec_text_nums = bool(_claimed_effect_tokens({**claim, "effect": {}}, {"revised_text": rec_rev}))
-                            claim_text_nums = bool(_claimed_effect_tokens({**claim, "effect": {}}, {"revised_text": claim_rev}))
-                            if rec_text_nums and not claim_text_nums:
-                                cand_revs = [r for r in dict.fromkeys((rec_rev, claim_rev)) if r]
-                            elif claim_text_nums:
-                                cand_revs = [claim_rev]
-                            else:
-                                cand_revs = [r for r in dict.fromkeys((claim_rev, rec_rev)) if r]
-                        else:
-                            cand_revs = [rec_rev or claim_rev]
-                        cand_verdict = None
-                        for probe_rev in cand_revs:
-                            probe_dec = {**claim, **record, "verdict": "supported", "revised_text": probe_rev}
-                            has_claimed_nums = bool(_claimed_effect_tokens(claim, probe_dec) or _claimed_effect_tokens(claim, claim))
-                            if not (has_claimed_nums and effect_numbers_anchored(claim, probe_dec, probe_evs)):
-                                continue
-                            for trial_verdict in ("supported", "partially_supported"):
-                                if _passes_positive_candidate(
-                                    claim, record, probe_refs, by_evidence, exec_events,
-                                    verdict=trial_verdict, claim_type=frozen_type, evidence_level=frozen_level,
-                                    claim_basis=claim.get("claim_basis"), scope=claim.get("scope"),
-                                    revised_text=probe_rev,
-                                ):
-                                    cand_verdict = trial_verdict
-                                    break
-                            if cand_verdict is not None:
-                                break
-                        if cand_verdict is not None:
-                            flags.append({
-                                "claim_id": cid,
-                                "hook_code": "possible_boilerplate_overhedging",
-                                "severity": "advisory",
-                                "non_blocking": True,
-                                "observed_verdict": observed_verdict,
-                                "advisory_candidate_verdict": cand_verdict,
-                                "advisory_candidate_level": frozen_level,
-                                "message": f"Claim '{cid}' uses generic over-hedging boilerplate despite anchored quantitative estimates and no failed checks.",
-                                "evidence_ids": probe_refs,
-                            })
-            except Exception:
-                continue
-
-        for f in findings_list:
-            try:
-                fid = f.get("id")
-                disp = disp_by_finding.get(fid)
-                if not disp or (disp.get("disposition") != "rejected" and disp.get("resolution") != "disagreement"):
-                    continue
-                role = f.get("role")
-                if role is not None and role != "underclaim":
-                    continue
-                cid_f = f.get("claim_id")
-                claim_f = by_claim.get(cid_f)
-                if not claim_f:
-                    continue
-                dec_f = by_record.get(cid_f, {})
-                cand_type = f.get("proposed_claim_type") or claim_f.get("claim_type")
-                cand_level = f.get("proposed_evidence_level") or claim_f.get("evidence_level")
-                if role is None:
-                    cur_f_type = dec_f.get("claim_type") or claim_f.get("claim_type")
-                    cur_f_level = dec_f.get("evidence_level") or claim_f.get("evidence_level")
-                    if (
-                        cand_type == cur_f_type
-                        and cand_type in TYPE_LEVELS
-                        and cand_level in TYPE_LEVELS[cand_type]
-                        and cur_f_level in TYPE_LEVELS[cand_type]
-                        and TYPE_LEVELS[cand_type].index(cand_level) <= TYPE_LEVELS[cand_type].index(cur_f_level)
-                        and dec_f.get("verdict") in POSITIVE
-                    ):
-                        continue
-                f_refs = list(f.get("evidence_ids") or claim_f.get("evidence_ids") or ())
-                f_evs = [by_evidence[r] for r in f_refs if r in by_evidence]
-                if _has_failed_check_or_contradiction(claim_f, f_evs):
-                    continue
-                cand_basis = f.get("proposed_claim_basis") or dec_f.get("claim_basis") or claim_f.get("claim_basis")
-                cand_scope = f.get("proposed_scope") or dec_f.get("scope") or claim_f.get("scope")
-                cand_verdict = None
-                for trial_verdict in ("supported", "partially_supported"):
-                    if _passes_positive_candidate(
-                        claim_f,
-                        dec_f,
-                        f_refs,
-                        by_evidence,
-                        exec_events,
-                        verdict=trial_verdict,
-                        claim_type=cand_type,
-                        evidence_level=cand_level,
-                        claim_basis=cand_basis,
-                        scope=cand_scope,
-                        revised_text=f.get("proposed_text") or dec_f.get("revised_text") or claim_f.get("text"),
-                    ):
-                        cand_verdict = trial_verdict
-                        break
-                if cand_verdict is not None:
-                    flags.append({
-                        "claim_id": cid_f,
-                        "finding_id": fid,
-                        "hook_code": "rejected_underclaim_finding_advisory",
-                        "severity": "advisory",
-                        "non_blocking": True,
-                        "observed_verdict": dec_f.get("verdict") or dec_f.get("stance"),
-                        "advisory_candidate_verdict": cand_verdict,
-                        "advisory_candidate_level": cand_level,
-                        "message": f"Rejected underclaim finding '{fid}' on claim '{cid_f}' proposes {cand_type} x {cand_level} ({cand_verdict}), which clears support and mechanical gates.",
-                        "evidence_ids": f_refs,
-                    })
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return {
-        "non_blocking": True,
-        "severity": "advisory",
-        "is_review": bool(is_review),
-        "flag_count": len(flags),
-        "flags": flags,
-        "lexical_advisory_count": len(lexical_advisories),
-        "lexical_advisories": lexical_advisories,
-    }
+from .symmetry_audit import (
+    _has_contradicting_card,
+    _has_failed_check,
+    _has_failed_check_or_contradiction,
+    _is_valid_audit_id,
+    _iter_claim_check_records,
+    _normalize_audit_inputs,
+    _passes_positive_candidate,
+    audit_underclaim_and_abstention,
+    enforce_symmetry_adjudication,
+)

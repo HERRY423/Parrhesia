@@ -217,6 +217,51 @@ class ClaimsV2Tests(unittest.TestCase):
         self.assertEqual(_digest(Engine._frozen_input(old)), _digest(expected))
         self.assertNotIn("claim_type", json.dumps(old))
 
+    def test_execution_card_optional_details_and_fork_role_validation(self):
+        c = self.claim("computational", "benchmark_measured", "ml")
+        c["provenance_cards"]["execution"] = [
+            {
+                "id": "exec-primary",
+                "status": "checked",
+                "reason": "Primary seed evaluation exited zero",
+                "evidence_ids": [self.ev],
+                "details": {
+                    **{key: "UNKNOWN" for key in CARD_FIELDS["execution"]},
+                    "exit_status": "0",
+                    "claim_id": "C1",
+                    "run_group": "benchmark-sweep",
+                    "fork_role": "primary",
+                },
+            },
+            {
+                "id": "exec-exp-fail",
+                "status": "failed",
+                "reason": "Exploratory learning-rate sweep diverged cleanly on non-primary fork",
+                "evidence_ids": [self.ev],
+                "details": {
+                    **{key: "UNKNOWN" for key in CARD_FIELDS["execution"]},
+                    "exit_status": "1",
+                    "claim_id": "C1",
+                    "run_group": "benchmark-sweep",
+                    "fork_role": "exploratory_failed",
+                },
+            },
+        ]
+        saved = self.save(c)
+        self.assertEqual(saved["claim_count"], 1)
+
+        bad_checked = deepcopy(c)
+        bad_checked["provenance_cards"]["execution"][0]["details"]["fork_role"] = "exploratory_failed"
+        with self.assertRaises(ContractError) as caught:
+            self.save(bad_checked)
+        self.assertEqual(caught.exception.code, "invalid_value")
+
+        bad_role = deepcopy(c)
+        bad_role["provenance_cards"]["execution"][1]["details"]["fork_role"] = "bogus_role"
+        with self.assertRaises(ContractError) as caught_role:
+            self.save(bad_role)
+        self.assertEqual(caught_role.exception.code, "invalid_value")
+
 
 if __name__ == "__main__":
     unittest.main()

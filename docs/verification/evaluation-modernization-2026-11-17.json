@@ -1,0 +1,408 @@
+{
+  "date": "2026-11-17",
+  "scope": "engineering evaluation and pilot preparation only",
+  "evidence_level": "engineering x test_passed",
+  "mechanical_all_passed": true,
+  "inputs_unchanged_during_run": true,
+  "base_cases": {
+    "passed": 40,
+    "total": 40
+  },
+  "exploratory_cards": {
+    "passed": 9,
+    "total": 9
+  },
+  "input_measurement": {
+    "runtime_version": "0.4.0",
+    "policy_layout": "layered-v1",
+    "policy_source_files": {
+      "templates/AGENTS.parrhesia.codex.md": {
+        "bytes": 8665,
+        "sha256": "7d62ed905bc42b73a532fe532546f1c127d0373e4d344008d0fc05fecba6ab82"
+      },
+      "templates/AGENTS.parrhesia.md": {
+        "bytes": 8938,
+        "sha256": "fbbaeadbda3e9b371254c3586cccf16512d00cc2b314acd05580e2a7ed3786a7"
+      },
+      "skills/parrhesia-l2-reference/SKILL.md": {
+        "bytes": 26094,
+        "sha256": "d014d97f3a882ef393ec47eca012912255062de916ecca5d6f2ec92965ff748d"
+      },
+      "skills/parrhesia-review/SKILL.md": {
+        "bytes": 3058,
+        "sha256": "5579b32e8b449404b3956c622e83d1ee76bafec840acf5c7b3e58bda801ac702"
+      },
+      "skills/parrhesia-review/references/workflow.md": {
+        "bytes": 11549,
+        "sha256": "bf2d41b559fa37a724a9cd6dc599f7e6fba258b1aacb624605b0f3c966035a2e"
+      }
+    },
+    "policy_size_bytes": {
+      "B_compact_agents_block_bytes": 8665,
+      "B_compact_l2_reference_skill_bytes": 26094,
+      "B_full_policy_bytes": 46582,
+      "E_full_l2_workflow_skill_bytes": 49368,
+      "E_skill_entrypoint_bytes": 3058,
+      "B_full_entrypoint_bytes": 8938
+    },
+    "arm_prompt_bytes": {
+      "A_baseline": 103,
+      "B_compact_l1": 8664,
+      "B_compact_l2": 34759,
+      "B_full": 46582,
+      "E_full_l2_workflow": 49368
+    },
+    "mcp": {
+      "tool_count": 25,
+      "compact_utf8_bytes": 69093,
+      "schema_mode": "shared",
+      "tool_profile": "full"
+    },
+    "measurement_basis": "raw source bytes; assembled prompt UTF-8 with LF and strip; compact tool JSON; not model token counts"
+  },
+  "input_fingerprint": {
+    "parrhesia/__init__.py": "942f4458f84ce3b0cb0553a5c03e1a2533f66aee570a4adc0fca13ba823a5b8e",
+    "parrhesia/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "parrhesia/adapters.py": "0048cedb916ca02ba90b51e2a89363a4b3fddb54af0e62e4207867cc8af66ce7",
+    "parrhesia/artifacts.py": "ea89889a7c4919168c172b8cc8c753251ef4e7441ed42cd0817f9f671c8b496b",
+    "parrhesia/binary_artifacts.py": "4bd0274fc8f921757964a20e50b135f9d8906ca9ca702226e5e1923a499eca78",
+    "parrhesia/calibration.py": "b5a690f3a976ac04591fbf476bda63a9ff2e7814ee2f023942828df7e2f060aa",
+    "parrhesia/claim_graph.py": "e027e34d375307b76b21e74f4e1a7348ec8065bba3e4d99f8a3b7fc7d16c0374",
+    "parrhesia/claims.py": "a652471ce2b13c9f7c6d39b93fd7c10c6dd1c7cd2958634247d4095b556a6b59",
+    "parrhesia/cli.py": "df52bf9233b02331dfdbca7a44c0a4caec13ad947ecaa361812858fd5cb15ac7",
+    "parrhesia/contract_docs.py": "6e768bb975210ea9ab2a02e449b186af8de375b4cfe0d70fedf0eff40cc0ebd3",
+    "parrhesia/contracts.py": "baf169b3a79373aadf8a5f2ec54de363cd26f3b733966b2823251490250121d7",
+    "parrhesia/core.py": "4db6663092e08901142427fbf2956283feab7552d351bf5d59985c2dd956dadf",
+    "parrhesia/demo.py": "b6b391b3662ff167dadaa61d4348395ff5b3a0e04babaafa62def1b6a280b002",
+    "parrhesia/effects.py": "2ac42410e27ba3966edfcadd34007d0d455d25573ef06607b640963a0206eae7",
+    "parrhesia/gates.py": "e2ee19ffef3a61c7453d3cea8eec95ccda989275595730c29dff807b834ee9aa",
+    "parrhesia/manuscript.py": "1c340d5cf5a419b439424f02f46b7e4b1dff696470e968ed2e2c18c6074d5306",
+    "parrhesia/mcp_prompts.py": "fe867948fce3c6cabb660087d9871acf6cfd7d243e53eb9cbd8f342b65d3ae08",
+    "parrhesia/mcp_schemas.py": "b10f69eff32587cbf9be317c133c1f1220d231bf09e6fd602d4d1724084e8b4d",
+    "parrhesia/packets.py": "74aaceb27ac9cb6906db27b191445c4283a299c156e78bc43bfb6ee6c94875c6",
+    "parrhesia/pdf_reader.py": "e6e20aedad39b663356a6beb60760320efdd222153c2f9680872963c6122a6d7",
+    "parrhesia/policy.py": "eb0d30638866fbc6def9a9291999cdccabce4c61560c28af128f6e99d5f8c777",
+    "parrhesia/prefill.py": "d411af9d7bc1cacd72cb476e25e6c4de8737599e633616dbd01a8e3eebe5a3cc",
+    "parrhesia/provenance.py": "1555da8535fe46bd199a84d1b91f83d17baaacffdac0f579d68874ba4f2fc6e1",
+    "parrhesia/report.py": "4f760a552eceacb2f52cedac27608a9239aedd4ec4549ca6d81c66e0ea0d55f4",
+    "parrhesia/server.py": "445cffcd0fbf848ac52aecb543dd343bd227926ea9f253fad2fe4d8197dfa269",
+    "parrhesia/stat_import.py": "aa74d08188a3c10320affd2e5e8df4b01d527b2ae68804d198675fed1c21c252",
+    "parrhesia/storage.py": "ab4ad955fea4dbbd416ca54162a17541cd096eb25945cdc3506fa167adfc058a",
+    "parrhesia/symmetry_audit.py": "c36eb03b03ac59c961a95f82ff5a5d3ae3d507adcc326612fdcaadd4417495d6",
+    "parrhesia/text_anchors.py": "45107bca7c4a3d4b903346b64cab6f9f421d1b7fd82455474db70a55f568bd1f",
+    "parrhesia/triggers.py": "fbdb5c31bea3b125e183d498e42895f5aa064cd67ebbccfdaf5cd3f2eda8c74a",
+    "scripts/run-stage0-eval.py": "7adc9a3bdda776a01b14a9bcaf96776bead469b02fcf964d254f430531384d75",
+    "scripts/eval_inputs.py": "efd6b67959af3508289cda91aa85cecc56c98b00009020a1fc6a7566e1a8a137",
+    "scripts/eval_ingestion.py": "600a00c2a7d26a22799c282a5332d9ce8f1394a8f88d4d205ae1d41cc56ea9dd",
+    "docs/evaluation/stage0-cases.json": "edf92f49a3980c9e630c315daea3ca29e76f50538a81789288faf91205446965"
+  },
+  "split_metrics": {
+    "counterfactual_summary": {
+      "card_id": "Card-A",
+      "positive_base_cases": 20,
+      "perturbations_per_case": 3,
+      "total_perturbation_runs": 60,
+      "passed_runs": 60,
+      "pre_card_a_rubber_stamp_rejected": 0,
+      "pre_card_a_rubber_stamp_rejection_rate": 0.0,
+      "pre_card_a_false_acceptance_leak_rate": 1.0,
+      "card_a_rubber_stamp_rejected": 30,
+      "card_a_rubber_stamp_hard_rejected": 30,
+      "card_a_rubber_stamp_advisory_flagged": 30,
+      "card_a_rubber_stamp_detected": 60,
+      "card_a_rubber_stamp_rejection_rate": 0.5,
+      "card_a_rubber_stamp_detection_rate": 1.0,
+      "card_a_false_acceptance_leak_rate": 0.0,
+      "calibrated_flip_accepted": 60,
+      "calibrated_flip_acceptance_rate": 1.0,
+      "kill_condition_threshold": 0.95,
+      "kill_condition_triggered": false,
+      "all_passed": true
+    },
+    "fork_multiplicity_summary": {
+      "card_id": "Card-B",
+      "positive_base_cases": 20,
+      "scenarios_per_case": 3,
+      "total_fork_runs": 60,
+      "passed_runs": 60,
+      "adversarial_runs": 40,
+      "positive_control_runs": 20,
+      "pre_card_b_adversarial_rejected": 0,
+      "pre_card_b_adversarial_rejection_rate": 0.0,
+      "pre_card_b_false_acceptance_leak_rate": 1.0,
+      "card_b_adversarial_rejected": 20,
+      "card_b_adversarial_hard_rejected": 20,
+      "card_b_adversarial_advisory_flagged": 20,
+      "card_b_adversarial_detected": 40,
+      "card_b_adversarial_rejection_rate": 0.5,
+      "card_b_adversarial_detection_rate": 1.0,
+      "card_b_false_acceptance_leak_rate": 0.0,
+      "card_b_positive_control_accepted": 20,
+      "card_b_positive_control_acceptance_rate": 1.0,
+      "card_b_overblocking_rate": 0.0,
+      "kill_condition_triggered": false,
+      "all_passed": true
+    },
+    "symmetry_audit_summary": {
+      "card_id": "Card-C",
+      "total_runs": 136,
+      "passed_runs": 136,
+      "false_abstention_runs": 20,
+      "false_abstention_detected": 20,
+      "false_abstention_detection_rate": 1.0,
+      "unjustified_downgrade_runs": 15,
+      "unjustified_downgrade_detected": 15,
+      "unjustified_downgrade_detection_rate": 1.0,
+      "evidence_of_absence_runs": 20,
+      "evidence_of_absence_detected": 20,
+      "evidence_of_absence_detection_rate": 1.0,
+      "boilerplate_overhedging_runs": 15,
+      "boilerplate_overhedging_detected": 15,
+      "boilerplate_overhedging_detection_rate": 1.0,
+      "rejected_underclaim_runs": 10,
+      "rejected_underclaim_detected": 10,
+      "rejected_underclaim_detection_rate": 1.0,
+      "calibrated_control_runs": 56,
+      "calibrated_false_alarms": 0,
+      "calibrated_false_alarm_rate": 0.0,
+      "non_blocking_export_preserved_count": 136,
+      "non_blocking_export_preserved_rate": 1.0,
+      "all_five_hooks_verified": true,
+      "all_passed": true
+    },
+    "paired_sensitivity_summary": {
+      "total_pairs": 6,
+      "passed_pairs": 6,
+      "strong_twins_accepted": 6,
+      "strong_twins_total": 6,
+      "weak_twins_rejected": 4,
+      "weak_twins_advisory_flagged": 2,
+      "weak_twins_detected": 6,
+      "weak_twins_total": 6,
+      "paired_evidence_sensitivity_concordance": 1.0,
+      "all_passed": true
+    },
+    "lineage_window_summary": {
+      "total_specs": 4,
+      "passed_specs": 4,
+      "synthetic_lineage_blocked": true,
+      "cli_derived_from_synthetic_blocked": true,
+      "hash_verified_unread_binary_accepted": true,
+      "tampered_binary_ancestor_blocked": true,
+      "chunked_window_head_tail_accepted": true,
+      "chunked_window_tail_contradiction_mode": "lexical_advisory",
+      "chunked_window_tail_contradiction_caught": true,
+      "unanchored_large_text_blocked": true,
+      "synthetic_lineage_blocking_rate": 1.0,
+      "chunked_window_head_tail_recall": 1.0,
+      "all_passed": true
+    },
+    "heldout_summary": {
+      "leakage_strict_passed": true,
+      "heldout_lexical_overlap_count": 0,
+      "realistic_controls_total": 24,
+      "realistic_controls_passed": 24,
+      "realistic_controls_false_rejections": 0,
+      "realistic_controls_false_rejection_rate": 0.0,
+      "realistic_controls_false_advisories": 0,
+      "adversarial_paraphrases_total": 12,
+      "adversarial_expected_mechanical_total": 6,
+      "adversarial_caught_mechanically_hard": 6,
+      "adversarial_flagged_lexical_advisory_only": 0,
+      "adversarial_uncaught_without_llm_or_p1": 6,
+      "adversarial_uncaught_case_codes": [
+        "HADV-07",
+        "HADV-08",
+        "HADV-09",
+        "HADV-10",
+        "HADV-11",
+        "HADV-12"
+      ],
+      "adversarial_mechanical_recall": 0.5,
+      "adversarial_advisory_only_rate": 0.0,
+      "adversarial_uncaught_rate": 0.5,
+      "adversarial_expectations_verified": 12,
+      "all_passed": true
+    },
+    "metamorphic_summary": {
+      "total_transforms": 12,
+      "passed_transforms": 12,
+      "invariance_rate": 1.0,
+      "false_advisory_count": 2,
+      "all_passed": true
+    },
+    "p1_effects_summary": {
+      "total_cases": 12,
+      "passed_cases": 12,
+      "positive_controls_total": 1,
+      "positive_controls_accepted": 1,
+      "positive_controls_false_rejections": 0,
+      "positive_controls_false_rejection_rate": 0.0,
+      "negative_traps_total": 11,
+      "negative_traps_caught": 11,
+      "negative_traps_catch_rate": 1.0,
+      "hadv_counterparts_total": 6,
+      "hadv_counterparts_caught": 6,
+      "hadv_counterparts_case_codes": [
+        "HADV-07",
+        "HADV-08",
+        "HADV-09",
+        "HADV-10",
+        "HADV-11",
+        "HADV-12"
+      ],
+      "event_chain_verified_count": 12,
+      "all_passed": true
+    },
+    "p2_longitudinal_summary": {
+      "total_cases": 8,
+      "passed_cases": 8,
+      "positive_controls_total": 4,
+      "positive_controls_passed": 4,
+      "negative_traps_total": 4,
+      "negative_traps_caught": 4,
+      "event_chain_verified_count": 8,
+      "pass_rate": 1.0,
+      "all_passed": true
+    },
+    "ingestion_summary": {
+      "total_cases": 10,
+      "passed_cases": 10,
+      "all_passed": true,
+      "action_calls": {
+        "create_case": 11,
+        "import_artifact": 10,
+        "extract_effects": 10,
+        "draft_manuscript": 11,
+        "set_ledger": 1,
+        "freeze": 1,
+        "review_packet": 2,
+        "submit_review": 2,
+        "adjudication_packet": 1,
+        "submit_adjudication": 1,
+        "verify": 2,
+        "scaffold_claim": 2
+      },
+      "action_coverage": {
+        "draft_manuscript": true,
+        "import_artifact": true,
+        "extract_effects": true,
+        "set_ledger": true,
+        "freeze": true,
+        "submit_review": true,
+        "submit_adjudication": true,
+        "verify": true
+      }
+    }
+  },
+  "tests": {
+    "evaluation_modernization": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "leakage_regressions": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "strict_export_leakage_passed": true,
+  "author_pilot": {
+    "status": "draft_materials_and_thresholds_pending",
+    "plan_digest": "9ae644f00e31b8736d14d122a802104ead2e6a49da3a08a779cedf91c3a84af2",
+    "planned_cases": 12,
+    "planned_runs": 48,
+    "observed_runs": 0,
+    "external_llm_status": "not_run"
+  },
+  "not_established": {
+    "external_llm": "not_run",
+    "current_full_host_workflow": "not_run",
+    "real_author_impact": "not_run",
+    "fresh_heldout_generalization": "not_established",
+    "full_unit_test_suite_this_turn": "not_run"
+  },
+  "retained_gaps": {
+    "pure_text_mechanical_recall": 0.5,
+    "uncaught_case_codes": [
+      "HADV-07",
+      "HADV-08",
+      "HADV-09",
+      "HADV-10",
+      "HADV-11",
+      "HADV-12"
+    ],
+    "false_advisory_cases": [
+      {
+        "transform_id": "META-02",
+        "base_case_code": "RCT-04",
+        "family": "randomized",
+        "transform_type": "append_adverse_event_null",
+        "base_outcome": "accepted",
+        "variant_outcome": "accepted",
+        "variant_export_state": "exported",
+        "variant_error_code": null,
+        "variant_symmetry_flags": [],
+        "variant_lexical_advisory_codes": [
+          "possible_contradictory_evidence_text"
+        ],
+        "passed": true
+      },
+      {
+        "transform_id": "META-12",
+        "base_case_code": "ML-04",
+        "family": "ml",
+        "transform_type": "insert_literature_contrast",
+        "base_outcome": "accepted",
+        "variant_outcome": "accepted",
+        "variant_export_state": "exported",
+        "variant_error_code": null,
+        "variant_symmetry_flags": [],
+        "variant_lexical_advisory_codes": [
+          "possible_contradictory_evidence_text"
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "failure_history": [
+    "ingestion-first.json: cross-row fixture initially violated its own CI before reaching the row-binding check; corrected the fixture, not the gate",
+    "modernization-tests-first.log: fault injection revealed the roundtrip probe did not require the public extraction output; added explicit assertions and reran"
+  ],
+  "raw_logs": {
+    "review/evaluation-modernization-2026-11-17/modernization-tests-delivery.log": "6876775691ed94bfa4d38675667a8abcc3896623a9a32ce6c79caa08a618fe00",
+    "review/evaluation-modernization-2026-11-17/leakage-tests.log": "49a85d4760e452715f9d6396c50c9b0685d2d8d94fa7c93d55ff8ccec41083f7",
+    "review/evaluation-modernization-2026-11-17/leakage-strict.json": "a1c7a85d7df693a8f537882cfe7058797d792341707c578cb147c26912190361",
+    "review/evaluation-modernization-2026-11-17/pilot-preparation.json": "a00e1cd2432e9b551dff02b741a6ead3263c08470ae83b93659915e8a3714e4e",
+    "review/evaluation-modernization-2026-11-17/pilot-empty-summary-final.json": "fc9d416ee14d7119c269a250c375b2e28ed61bccbe11f2f8375304e2890129f3",
+    "review/evaluation-modernization-2026-11-17/prompt-export.json": "27b847a203363e20a5f083f5d5ed831775fefb299cbcffa5306dc5df0678a340",
+    "review/evaluation-modernization-2026-11-17/stage0-final.utf8.json": "8b2bc3e72b3e605a7a94fe2e114bd5e2fc33f399e5e9df4e5934eff3055cd95c",
+    "review/evaluation-modernization-2026-11-17/stage0-final.json": "5e2268fca07b3c1a182bfdbadbeada7e04f7e51ffb0ecebf6cf6acc26453b71a",
+    "review/evaluation-modernization-2026-11-17/stage0-final.md": "df5e287dc228dc6b065131c193e1af75def63f3a190a9453bad2b4ededc7686d"
+  },
+  "source_files": {
+    "scripts/run-stage0-eval.py": "7adc9a3bdda776a01b14a9bcaf96776bead469b02fcf964d254f430531384d75",
+    "scripts/eval_ingestion.py": "600a00c2a7d26a22799c282a5332d9ce8f1394a8f88d4d205ae1d41cc56ea9dd",
+    "scripts/eval_inputs.py": "efd6b67959af3508289cda91aa85cecc56c98b00009020a1fc6a7566e1a8a137",
+    "scripts/prepare-impact-pilot.py": "e9999322e06bb6827e5af4167a43149766abf0a4b6e403179675bcc470cdb007",
+    "tests/test_evaluation_modernization.py": "a3258eb16b23e3baa23b7e3f386ecab81a813c203acba0349175ff01ae96d22c",
+    "docs/evaluation/author-impact-pilot.md": "c97ace8efa10355aa295ed7f9cf3e45ebdbb1ac7a99652625841db1107664b8a",
+    "docs/evaluation-plan.md": "e0a710b18677b407b9df5b68717ce684519b382a4329664d1ea67fa0d012df40",
+    ".github/workflows/policy.yml": "4c95db811a51df07c4f01f877a0940da8a541c9bc40eda65a96603b246d6d601",
+    "README.md": "35da618bb904a81196998534804af7281d160fb47370b36750fe6b514d4bba73",
+    "README.en.md": "41eb9385e9bf5916a0a94510902c33f5ad7979d0ab7a20f5a9ee4f9aef7dd001",
+    "CHANGELOG.md": "344c321388c9ceab11b126e16e212b234c94df020b5cec25c4798cca3211442d",
+    "docs/verification/evaluation-modernization-2026-11-17.md": "6489a2576ded9c21ef69b49a454670fe06e45599ade9fa2e0e4b83678ccba8e0"
+  },
+  "historical_report": {
+    "path": "docs/verification/archive/stage0-evaluation-before-2026-11-17.md",
+    "sha256": "74bebe83e2957059127145263b79c8b45e05e7a98ef7ec635a465ca7c5234148"
+  },
+  "stdout_capture": {
+    "path": "review/evaluation-modernization-2026-11-17/stage0-final.json",
+    "raw_sha256": "5e2268fca07b3c1a182bfdbadbeada7e04f7e51ffb0ecebf6cf6acc26453b71a",
+    "stdout_encoding": "gb18030"
+  },
+  "runtime_source_matches_at_delivery": true
+}

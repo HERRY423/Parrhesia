@@ -1,0 +1,169 @@
+{
+  "date": "2026-11-16",
+  "scope": "Current local working tree; engineering only; no live-model or native-host acceptance claims",
+  "tools": {
+    "before_bytes": 70469,
+    "after_bytes": 68547,
+    "count": 25,
+    "unchanged_expanded_input_schemas": 24,
+    "unchanged_output_schemas": 24,
+    "additive_contract_parameters": [
+      "section",
+      "expected_sha256"
+    ],
+    "sizes": {
+      "parrhesia_contract": {
+        "before": 1016,
+        "after": 1492
+      },
+      "parrhesia_select_workspace": {
+        "before": 829,
+        "after": 829
+      },
+      "parrhesia_workflow": {
+        "before": 998,
+        "after": 998
+      },
+      "parrhesia_validate": {
+        "before": 1563,
+        "after": 1563
+      },
+      "parrhesia_draft_manuscript": {
+        "before": 2777,
+        "after": 2777
+      },
+      "parrhesia_import_artifact": {
+        "before": 1801,
+        "after": 1801
+      },
+      "parrhesia_extract_effects": {
+        "before": 3746,
+        "after": 3746
+      },
+      "parrhesia_create_case": {
+        "before": 1890,
+        "after": 1890
+      },
+      "parrhesia_register_evidence": {
+        "before": 2886,
+        "after": 2886
+      },
+      "parrhesia_register_hypothesis": {
+        "before": 1191,
+        "after": 1191
+      },
+      "parrhesia_scaffold_claim": {
+        "before": 2198,
+        "after": 2198
+      },
+      "parrhesia_set_ledger": {
+        "before": 22627,
+        "after": 21243
+      },
+      "parrhesia_freeze": {
+        "before": 939,
+        "after": 939
+      },
+      "parrhesia_review_packet": {
+        "before": 1661,
+        "after": 1661
+      },
+      "parrhesia_submit_review": {
+        "before": 4239,
+        "after": 4061
+      },
+      "parrhesia_adjudication_packet": {
+        "before": 1439,
+        "after": 1439
+      },
+      "parrhesia_submit_adjudication": {
+        "before": 7553,
+        "after": 6717
+      },
+      "parrhesia_verify": {
+        "before": 1177,
+        "after": 1177
+      },
+      "parrhesia_get_case": {
+        "before": 1456,
+        "after": 1456
+      },
+      "parrhesia_export": {
+        "before": 1118,
+        "after": 1118
+      },
+      "parrhesia_record_human_decision": {
+        "before": 1314,
+        "after": 1314
+      },
+      "parrhesia_claim_graph": {
+        "before": 1007,
+        "after": 1007
+      },
+      "parrhesia_evaluate_triggers": {
+        "before": 1284,
+        "after": 1284
+      },
+      "parrhesia_record_calibration_outcome": {
+        "before": 2416,
+        "after": 2416
+      },
+      "parrhesia_calibration_report": {
+        "before": 1318,
+        "after": 1318
+      }
+    }
+  },
+  "contract": {
+    "full_text_bytes": 76985,
+    "index_text_bytes": 3449,
+    "scaffold_claim_text_bytes": 2112,
+    "source_sha256": "f78f3e96054d37285664ec65223ccfa5ef953df4bf2f004e3c526e09c8e205f5",
+    "metric": "UTF-8 document text, LF endings; not model tokens or total protocol framing"
+  },
+  "files": {
+    "parrhesia/mcp_schemas.py": {
+      "before_bytes": 77365,
+      "after_bytes": 80211,
+      "sha256": "c2339008175525f55a141ed50f64afb4126ca9bf29640a2b339a951eb8a41057"
+    },
+    "parrhesia/server.py": {
+      "before_bytes": 18561,
+      "after_bytes": 19854,
+      "sha256": "2e7ce5aa82f2d8ad3b25e4e2a7215295d08e0c2ea7f4148456ef974a5ee42215"
+    },
+    "policy/parrhesia-policy.md": {
+      "before_bytes": 73285,
+      "after_bytes": 73647,
+      "sha256": "18e03c821ff42ca02ac0fdbbbbe051be1bd249390614641e1e6a4bbfce833187"
+    },
+    "docs/contract.md": {
+      "before_bytes": 75688,
+      "after_bytes": 77572,
+      "sha256": "d0e489d36f97b04fb9200cc71f44508d5defdf8d9c5f8466771735d8ede93d5e"
+    },
+    "skills/parrhesia-review/SKILL.md": {
+      "before_bytes": 3029,
+      "after_bytes": 3058,
+      "sha256": "5579b32e8b449404b3956c622e83d1ee76bafec840acf5c7b3e58bda801ac702"
+    },
+    "skills/parrhesia-review/references/workflow.md": {
+      "before_bytes": 10553,
+      "after_bytes": 10886,
+      "sha256": "b4053c05103efe3d9c5ac0b7eb7b20c8d3db4cecfb2a7a6d7e4afad92391ab18"
+    }
+  },
+  "verification": {
+    "full_suite": {
+      "tests": 258,
+      "passed": 258,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 219.342,
+      "single_run_all_green": true
+    },
+    "real_model_evaluation": "NOT_RUN",
+    "native_host_acceptance": "NOT_RUN"
+  }
+}

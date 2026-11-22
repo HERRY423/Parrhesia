@@ -15,6 +15,7 @@ from parrhesia.policy import check_generated
 
 FILES = (
     "templates/AGENTS.parrhesia.chatgpt.md",
+    "skills/parrhesia-l2-reference/SKILL.md",
     "templates/chatgpt/01-frozen-input.md",
     "templates/chatgpt/01-frozen-input-blind.md",
     "templates/chatgpt/02-overclaim.md",
@@ -26,10 +27,12 @@ FILES = (
 START = """# Parrhesia ChatGPT 交接套件
 
 先读 [使用说明](docs/chatgpt-integration.md)，再复制
-[ChatGPT 指令](templates/AGENTS.parrhesia.chatgpt.md)。
+[ChatGPT 指令](templates/AGENTS.parrhesia.chatgpt.md) 到项目指令或自定义 GPT Instructions。
 
-templates/chatgpt/ 按 01–05 提供冻结资料、两侧提示词、裁决和操作者记录。
-每侧只接收自己的提示词和同版本冻结资料，不要上传整套文件给审查者。
+- 默认盲审冻结资料：L2 优先使用 `templates/chatgpt/01-frozen-input-blind.md`（`blind=true`，不含初稿正文、当前最佳解释与区分检验设计）；仅在确需审查初稿全文时才改用 `01-frozen-input.md`。
+- 隔离双审：将同版本冻结资料分别配上 `02-overclaim.md` 和 `03-underclaim.md`（均自含 12 类主张枚举与 AUROC 0.84 校准锚点）交给两个干净会话。推荐主项目开启 **Project-Only Memory**，两侧审查使用两个关闭个性化的临时聊天（**Unpersonalized Temporary Chat**）。每侧只接收自己的提示词与同版本冻结资料，不要上传整套文件。
+- 裁决与溯源：带回主会话按 `04-adjudication.md` 裁决并保存 `05-handoff-record.md`；科学检查细则见 `skills/parrhesia-l2-reference/SKILL.md`。文字模式使用 `session_anchored` 溯源（Code Interpreter 实测 stdout 或用户逐字原文/表格定位，并标注“无机械哈希核对”）；未核实内容保留未知。
+
 这是空白模板，尚未执行审查；没有持久工具记录与机械核对。
 KIT-MANIFEST.json 只核对套件原始文件，不核对后来填写的资料或科学结论。
 """

@@ -18,6 +18,7 @@ from parrhesia.adapters import (  # noqa: E402
     BEGIN,
     END,
     SKILL_NAMES,
+    skill_layout_errors,
     check_owned_files,
     collect_runtime_payloads,
     collect_skills_payloads,
@@ -119,7 +120,7 @@ def _build_antigravity_manifest(source: Path, version: str) -> bytes:
 def _build_antigravity_rule(source: Path) -> bytes:
     compact = load_policy_body(source, "compact")
     host_note = """## Antigravity 宿主适配约定
-- **精简规则与按需 Skill**：本规则仅常驻精简核心（严格 `< 24,000 B`）；日常按此执行，仅在触发 `L2` 正式双审或核对九设计包/八统计报告时按需读取 `parrhesia-l2-reference` skill，调用 MCP 工具 `parrhesia_workflow` 前遵循 `parrhesia-review` skill。
+- **精简规则与按需 Skill**：本规则仅常驻精简核心（严格 `< 24,000 B`）；日常按此执行，触发 `L2` 正式双审或核对九设计包/八统计报告时按需读取 `parrhesia-l2-reference` 与 `parrhesia-review`（含 `references/workflow.md`）；优先读取只读资源 `parrhesia://cases/{case_id}` 并调用分立强类型 MCP 工具（`parrhesia_scaffold_claim`、`parrhesia_set_ledger`、`parrhesia_get_case`、`parrhesia_verify` 等），仅当宿主不支持 `$defs`/`$ref` 时回退 `parrhesia_workflow`。
 - **审查者隔离映射**：执行 `L2` 独立双审时，通过 `invoke_subagent`（不继承起草历史）或 `swarm`（`add` 不传 `fork`）为夸大审查与低估审查分别启动干净上下文；仅传入对应角色 `review_packet` 与授权证据内容，禁止泄露起草讨论与另一侧意见，并在 `input_manifest` 中如实记录 `inherited_history: false`、实际 `memory_read` 状态、`packet_id`、`input_digest`、`blind`、`evidence_ids` 与 `unread_evidence_ids`。
 - **命令行执行溯源**：运行本地分析或复现脚本并引用结果时，经 `run_command` 调用 `python -m parrhesia record-exec --workspace <project> -- <cmd>`，再将生成的 `execution` 溯源卡写入台账。
 - **状态隔离**：本适配器只写入安装目标插件目录与运行时目录，不修改全局 `config.json`；`SessionStart` 钩子仅在工作区 `.parrhesia/state.sqlite3` 存在本地案例时给出单行状态提醒。"""
@@ -412,12 +413,7 @@ def _validate_antigravity_artifacts(root: Path, old: dict, errors: list[str]) ->
             if text.lstrip().startswith("---"):
                 errors.append("rules/parrhesia.md unexpectedly contains YAML frontmatter.")
 
-    for skill_name in SKILL_NAMES:
-        skill_path = contained(root, f"{plugin_prefix}/skills/{skill_name}/SKILL.md")
-        if skill_path.is_file():
-            skill_text = skill_path.read_text(encoding="utf-8")
-            if not skill_text.startswith("---\n") or f"name: {skill_name}\n" not in skill_text[:300]:
-                errors.append(f"skills/{skill_name}/SKILL.md is missing expected frontmatter name.")
+    errors.extend(skill_layout_errors(root, f"{plugin_prefix}/skills"))
 
     if old.get("hooks_enabled"):
         hooks_path = contained(root, f"{plugin_prefix}/hooks.json")

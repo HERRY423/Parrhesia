@@ -3,16 +3,18 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+import json
 import os
 from pathlib import Path, PureWindowsPath
 import platform
 import re
+import sqlite3
 import stat
 import subprocess
 import sys
 import unicodedata
 
-from .contracts import fail, string
+from .contracts import ContractError, fail, string
 from .gates import strip_terminal_escapes
 
 LOCKFILE_EXACT_NAMES = frozenset({
@@ -123,7 +125,7 @@ def _run_git(workspace: Path, args: list[str]) -> subprocess.CompletedProcess[by
         return None
 
 
-def _hash_git_diff(workspace: Path, args: list[str]) -> tuple[str | None, int]:
+def _hash_git_diff(workspace: Path, args: list[str]) -> tuple[str | None, int, str]:
     """Stream `git diff` bytes directly into SHA-256 without buffering large diffs."""
     digest = hashlib.sha256()
     total = 0
@@ -143,22 +145,118 @@ def _hash_git_diff(workspace: Path, args: list[str]) -> tuple[str | None, int]:
                     digest.update(chunk)
                     total += len(chunk)
                 rc = proc.wait(timeout=GIT_TIMEOUT_SECONDS)
-            except (OSError, subprocess.TimeoutExpired):
+            except subprocess.TimeoutExpired:
                 proc.kill()
                 try:
                     proc.wait(timeout=2.0)
                 except (OSError, subprocess.TimeoutExpired):
                     pass
-                return None, 0
+                return None, 0, "timed_out"
+            except OSError:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2.0)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                return None, 0, "error"
     except OSError:
-        return None, 0
+        return None, 0, "error"
     if rc != 0:
-        return None, 0
-    return digest.hexdigest(), total
+        return None, 0, "error"
+    return digest.hexdigest(), total, "ok"
 
 
-def _parse_git_status_porcelain_z(raw_bytes: bytes, internal_prefixes: tuple[str, ...]) -> tuple[bool, int]:
-    """Parse `git status --porcelain=v1 -z` excluding untracked Parrhesia internal/log dirs."""
+def _unpack_diff_result(result: tuple[object, ...]) -> tuple[str | None, int, str]:
+    """Normalize 3-tuple or legacy 2-tuple `_hash_git_diff` return values."""
+    if len(result) == 2:
+        sha, total = result
+        return sha, int(total), ("ok" if sha is not None else "error")  # type: ignore[arg-type]
+    sha, total, status = result
+    return sha, int(total), str(status)  # type: ignore[arg-type]
+
+
+def _recorded_export_digests(workspace: Path) -> dict[str, str]:
+    """Read SQLite-recorded `.md` export paths and SHA-256 digests strictly read-only."""
+    state_dir = workspace / ".parrhesia"
+    db_path = state_dir / "state.sqlite3"
+    if is_link_or_reparse(state_dir) or is_link_or_reparse(db_path) or not db_path.is_file():
+        return {}
+    try:
+        conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True, timeout=0.5)
+    except sqlite3.Error:
+        return {}
+    digests: dict[str, str] = {}
+    try:
+        has_cases = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='cases'"
+        ).fetchone()
+        if has_cases is None:
+            return {}
+        for (raw_doc,) in conn.execute("SELECT document FROM cases"):
+            try:
+                doc = json.loads(raw_doc)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(doc, dict) or doc.get("state") not in ("export_pending", "exported"):
+                continue
+            export_info = doc.get("export")
+            if not isinstance(export_info, dict):
+                continue
+            rel = export_info.get("relative_path")
+            sha = export_info.get("sha256")
+            if (
+                isinstance(rel, str)
+                and isinstance(sha, str)
+                and rel.replace("\\", "/").lower().endswith(".md")
+                and len(sha) == 64
+            ):
+                digests[rel.replace("\\", "/")] = sha
+    except sqlite3.Error:
+        return {}
+    finally:
+        conn.close()
+    return digests
+
+
+def _is_verified_internal_untracked(
+    rel_path: str,
+    internal_prefixes: tuple[str, ...],
+    *,
+    workspace: Path | None = None,
+    ws_prefix: str = "",
+    internal_exact_files: tuple[str, ...] = (),
+    recorded_exports: dict[str, str] | None = None,
+) -> bool:
+    """Return True only for Parrhesia internal state, `.agentmuxer/ledger.md`, or hash-matched exports."""
+    if any(rel_path == prefix or rel_path.startswith(prefix + "/") for prefix in internal_prefixes):
+        return True
+    if rel_path in internal_exact_files:
+        return True
+    if workspace is not None and recorded_exports:
+        if ws_prefix and not rel_path.startswith(ws_prefix):
+            return False
+        ws_rel = rel_path[len(ws_prefix):] if ws_prefix else rel_path
+        expected_sha = recorded_exports.get(ws_rel)
+        if expected_sha:
+            try:
+                candidate = resolve_workspace_path(workspace, ws_rel)
+                actual_sha, _ = hash_regular_file(candidate)
+                return actual_sha == expected_sha
+            except (ContractError, OSError):
+                return False
+    return False
+
+
+def _parse_git_status_porcelain_z(
+    raw_bytes: bytes,
+    internal_prefixes: tuple[str, ...],
+    *,
+    workspace: Path | None = None,
+    ws_prefix: str = "",
+    internal_exact_files: tuple[str, ...] = (),
+    recorded_exports: dict[str, str] | None = None,
+) -> tuple[bool, int]:
+    """Parse `git status --porcelain=v1 -z` excluding verified internal/export state."""
     tokens = raw_bytes.split(b"\x00")
     idx = 0
     tracked_dirty = False
@@ -174,7 +272,14 @@ def _parse_git_status_porcelain_z(raw_bytes: bytes, internal_prefixes: tuple[str
         xy = text_entry[:2]
         rel_path = text_entry[3:].replace("\\", "/")
         if xy == "??":
-            if any(rel_path == prefix or rel_path.startswith(prefix + "/") for prefix in internal_prefixes):
+            if _is_verified_internal_untracked(
+                rel_path,
+                internal_prefixes,
+                workspace=workspace,
+                ws_prefix=ws_prefix,
+                internal_exact_files=internal_exact_files,
+                recorded_exports=recorded_exports,
+            ):
                 continue
             untracked_count += 1
         elif xy == "!!":
@@ -199,8 +304,13 @@ def collect_git_state(workspace: Path) -> dict:
         "tracked_dirty": False,
         "working_tree_diff_sha256": None,
         "working_tree_diff_bytes": 0,
+        "working_tree_diff_status": "unavailable",
+        "working_tree_diff_timed_out": False,
         "staged_diff_sha256": None,
         "staged_diff_bytes": 0,
+        "staged_diff_status": "unavailable",
+        "staged_diff_timed_out": False,
+        "status_ok": False,
         "untracked_count": 0,
     }
     inside = _run_git(ws, ["rev-parse", "--is-inside-work-tree"])
@@ -219,6 +329,8 @@ def collect_git_state(workspace: Path) -> dict:
             except (ValueError, OSError):
                 pass
     internal_prefixes = (f"{ws_prefix}.parrhesia", f"{ws_prefix}artifacts/exec-logs")
+    internal_exact_files = (f"{ws_prefix}.agentmuxer/ledger.md",)
+    recorded_exports = _recorded_export_digests(ws)
 
     head_proc = _run_git(ws, ["rev-parse", "--verify", "HEAD"])
     head_sha = (
@@ -244,13 +356,26 @@ def collect_git_state(workspace: Path) -> dict:
         detached = False
 
     status_proc = _run_git(ws, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
-    if status_proc is not None and status_proc.returncode == 0:
-        tracked_dirty, untracked_count = _parse_git_status_porcelain_z(status_proc.stdout, internal_prefixes)
+    status_ok = status_proc is not None and status_proc.returncode == 0
+    if status_ok:
+        assert status_proc is not None
+        tracked_dirty, untracked_count = _parse_git_status_porcelain_z(
+            status_proc.stdout,
+            internal_prefixes,
+            workspace=ws,
+            ws_prefix=ws_prefix,
+            internal_exact_files=internal_exact_files,
+            recorded_exports=recorded_exports,
+        )
     else:
         tracked_dirty, untracked_count = False, 0
 
-    wt_diff_sha256, wt_diff_bytes = _hash_git_diff(ws, ["diff", "--binary"])
-    staged_diff_sha256, staged_diff_bytes = _hash_git_diff(ws, ["diff", "--cached", "--binary"])
+    wt_diff_sha256, wt_diff_bytes, wt_diff_status = _unpack_diff_result(
+        _hash_git_diff(ws, ["diff", "--binary"])
+    )
+    staged_diff_sha256, staged_diff_bytes, staged_diff_status = _unpack_diff_result(
+        _hash_git_diff(ws, ["diff", "--cached", "--binary"])
+    )
     dirty = bool(tracked_dirty or untracked_count > 0 or wt_diff_bytes > 0 or staged_diff_bytes > 0)
     return {
         "git_available": True,
@@ -262,8 +387,13 @@ def collect_git_state(workspace: Path) -> dict:
         "tracked_dirty": tracked_dirty,
         "working_tree_diff_sha256": wt_diff_sha256,
         "working_tree_diff_bytes": wt_diff_bytes,
+        "working_tree_diff_status": wt_diff_status,
+        "working_tree_diff_timed_out": wt_diff_status == "timed_out",
         "staged_diff_sha256": staged_diff_sha256,
         "staged_diff_bytes": staged_diff_bytes,
+        "staged_diff_status": staged_diff_status,
+        "staged_diff_timed_out": staged_diff_status == "timed_out",
+        "status_ok": status_ok,
         "untracked_count": untracked_count,
     }
 
@@ -312,7 +442,7 @@ def _sentinel_exists(path: Path) -> bool:
 
 def collect_environment_markers() -> dict:
     """Collect safe non-secret runtime and container presence markers only."""
-    return {
+    markers = {
         "python_version": sys.version.split()[0],
         "python_executable": Path(sys.executable).name if sys.executable else "",
         "os": platform.system(),
@@ -322,6 +452,12 @@ def collect_environment_markers() -> dict:
         "dockerenv_present": _sentinel_exists(Path("/.dockerenv")),
         "kubernetes_service_host_present": bool(os.environ.get("KUBERNETES_SERVICE_HOST")),
     }
+    # Only named scheduler identifiers, never enumerate or dump the environment.
+    markers["scheduler_job_ids"] = {
+        name: value for name in ("SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID", "SLURM_ARRAY_TASK_ID", "PBS_JOBID", "JOB_ID")
+        if (value := os.environ.get(name)) and re.fullmatch(r"[0-9][A-Za-z0-9_.\[\]-]{0,127}", value)
+    }
+    return markers
 
 
 def validate_input_files(workspace: Path, raw_paths: list[str]) -> list[dict]:
@@ -499,16 +635,48 @@ def synthesize_code_version(git_state: dict, lockfiles: list[dict]) -> str:
         wt_sha = git_state.get("working_tree_diff_sha256")
         staged_sha = git_state.get("staged_diff_sha256")
         untracked = git_state.get("untracked_count", 0)
+        wt_status = git_state.get("working_tree_diff_status")
+        staged_status = git_state.get("staged_diff_status")
+        wt_timed_out = bool(git_state.get("working_tree_diff_timed_out")) or wt_status == "timed_out"
+        staged_timed_out = bool(git_state.get("staged_diff_timed_out")) or staged_status == "timed_out"
+        wt_unavailable = (
+            not wt_timed_out
+            and (
+                wt_status in ("error", "unavailable")
+                or ("working_tree_diff_sha256" in git_state and wt_sha is None)
+            )
+        )
+        staged_unavailable = (
+            not staged_timed_out
+            and (
+                staged_status in ("error", "unavailable")
+                or ("staged_diff_sha256" in git_state and staged_sha is None)
+            )
+        )
+        status_failed = git_state.get("status_ok") is False
+
+        state_parts: list[str] = []
         if wt_bytes > 0 and wt_sha:
-            state_part = f"dirty_diff={wt_sha[:12]}"
+            state_parts.append(f"dirty_diff={wt_sha[:12]}")
         elif staged_bytes > 0 and staged_sha:
-            state_part = f"staged_diff={staged_sha[:12]}"
+            state_parts.append(f"staged_diff={staged_sha[:12]}")
         elif untracked > 0:
-            state_part = f"untracked={untracked}"
+            state_parts.append(f"untracked={untracked}")
         elif git_state.get("dirty"):
-            state_part = "dirty"
-        else:
-            state_part = "clean"
+            state_parts.append("dirty")
+
+        if wt_timed_out:
+            state_parts.append("working_tree_diff_timed_out")
+        elif wt_unavailable:
+            state_parts.append("working_tree_diff_unavailable")
+        if staged_timed_out:
+            state_parts.append("staged_diff_timed_out")
+        elif staged_unavailable:
+            state_parts.append("staged_diff_unavailable")
+        if status_failed:
+            state_parts.append("git_status_unavailable")
+
+        state_part = ",".join(state_parts) if state_parts else "clean"
         base = f"git:{sha_tag}({state_part})"
         if lock_summary:
             return _cap_summary(f"{base}; lockfiles={lock_summary}")

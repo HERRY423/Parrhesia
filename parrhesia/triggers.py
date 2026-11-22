@@ -5,12 +5,20 @@ import math
 from typing import Any
 
 from .claims import DESIGN_FIELDS, EXECUTION_FORK_ROLES, STAT_FIELDS, TYPE_LEVELS
+from .claim_graph import (
+    _compute_active_standing,
+    _detect_cycles,
+    adjudication_is_effective,
+    build_claim_graph as _build_claim_graph_impl,
+)
 from .contracts import CHECK_NAMES, CHECK_STATUSES, VERDICTS, array, enum, fail, fields, ids, obj, string
 from .effects import DIFFERENCE_METRICS, EFFECT_METRICS, EFFECT_RECORD_ROLES, RATIO_METRICS
 from .gates import (
-    contradictory_evidence_kind,
-    contradictory_positive_evidence_text,
+    BOILERPLATE_OVERHEDGING_RE,
+    _is_disclosed_failed_fork,
+    is_contradicting_relation,
     is_placeholder,
+    is_vacuous_rationale,
     meaningful,
     quote_status,
 )
@@ -183,6 +191,11 @@ def validate_reversal_triggers(triggers: Any, domain: str = "scientific") -> lis
         trig_id = string(trig["id"], f"{prefix}.id", maximum=200)
         trigger_ids.append(trig_id)
         description = _meaningful_text(trig["description"], f"{prefix}.description", maximum=1000)
+        if is_vacuous_rationale(description) or BOILERPLATE_OVERHEDGING_RE.search(description):
+            fail(
+                "invalid_reversal_condition",
+                f"{prefix}.description must state a concrete observable condition or threshold, not a trivial label or generic future-study deferral",
+            )
         target_verdict = enum(trig["target_verdict"], VERDICTS, f"{prefix}.target_verdict")
 
         target_claim_type = trig.get("target_claim_type")
@@ -354,20 +367,51 @@ def validate_prior_claim_links_references(
                 )
 
 
+def _normalize_design_packages(raw_packages: Any) -> dict[str, dict]:
+    """Normalize v2 list-of-packages and legacy dict formats into {family: checks_dict}."""
+    normalized: dict[str, dict] = {}
+    if isinstance(raw_packages, dict):
+        for fam, val in raw_packages.items():
+            if not isinstance(fam, str) or not fam or not isinstance(val, dict):
+                continue
+            if "checks" in val and isinstance(val["checks"], dict) and set(val.keys()) <= {"family", "checks"}:
+                normalized[fam] = dict(val["checks"])
+            else:
+                normalized[fam] = dict(val)
+        return normalized
+    if isinstance(raw_packages, (list, tuple)):
+        for pkg in raw_packages:
+            if not isinstance(pkg, dict):
+                continue
+            fam = pkg.get("family")
+            checks = pkg.get("checks")
+            if isinstance(fam, str) and fam and isinstance(checks, dict):
+                normalized[fam] = dict(checks)
+    return normalized
+
+
 def _derive_evidence_verifications(
     evidence_by_id: dict[str, dict],
     verification: dict | None = None,
+    contradicting_evidence_ids: set[str] | tuple[str, ...] | None = None,
 ) -> dict[str, dict]:
     verifications: dict[str, dict] = {}
+    contra_ids = {eid for eid in (contradicting_evidence_ids or ()) if isinstance(eid, str) and eid}
     if verification:
         for entry in verification.get("evidence", ()):
             if isinstance(entry, dict) and entry.get("evidence_id"):
-                verifications[entry["evidence_id"]] = dict(entry)
+                e = dict(entry)
+                if e.get("status") == "contradicts":
+                    e["contradicts"] = True
+                verifications[entry["evidence_id"]] = e
     for ev_id, ev in (evidence_by_id or {}).items():
         base = dict(verifications.get(ev_id) or {})
-        contradicts = bool(base.get("contradicts")) or (
-            contradictory_evidence_kind(ev) is not None
-            or bool(contradictory_positive_evidence_text(ev, include_outcome_stripped=False))
+        contradicts = (
+            bool(base.get("contradicts"))
+            or base.get("status") == "contradicts"
+            or bool(ev.get("contradicts"))
+            or ev.get("status") == "contradicts"
+            or ev_id in contra_ids
         )
         if "status" not in base:
             snap_status = ev.get("snapshot_status")
@@ -393,6 +437,11 @@ def _derive_evidence_verifications(
         base["evidence_id"] = ev_id
         base["contradicts"] = contradicts
         verifications[ev_id] = base
+    for ev_id in contra_ids:
+        if ev_id in verifications:
+            verifications[ev_id]["contradicts"] = True
+        else:
+            verifications[ev_id] = {"evidence_id": ev_id, "status": "contradicts", "contradicts": True}
     return verifications
 
 
@@ -556,7 +605,8 @@ def evaluate_single_trigger(trigger: dict, context: dict) -> dict:
             rec = (context.get("statistical_report") or {}).get(key)
         elif "." in target:
             fam, key = target.split(".", 1)
-            rec = ((context.get("design_packages") or {}).get(fam) or {}).get(key)
+            design_packages = _normalize_design_packages(context.get("design_packages"))
+            rec = (design_packages.get(fam) or {}).get(key)
 
         if rec is None:
             return _trigger_result(
@@ -651,7 +701,7 @@ def evaluate_single_trigger(trigger: dict, context: dict) -> dict:
                     status="fired",
                     observed_value="contradicts",
                     matched_source=ev_id,
-                    reason=f"Evidence '{ev_id}' exhibits contradiction cue or contradicting kind",
+                    reason=f"Evidence '{ev_id}' has structured contradiction status or contradicting provenance card",
                 )
             if status_val in trigger_on:
                 return _trigger_result(
@@ -792,19 +842,43 @@ def evaluate_single_trigger(trigger: dict, context: dict) -> dict:
     )
 
 
-def _claim_has_contradiction(claim: dict) -> bool:
-    for cards in (claim.get("provenance_cards") or {}).values():
+def _claim_contradiction_info(claim: dict) -> tuple[bool, set[str]]:
+    cards_by_kind = claim.get("provenance_cards")
+    if not isinstance(cards_by_kind, dict):
+        return False, set()
+    raw_exec = cards_by_kind.get("execution")
+    all_exec_cards = raw_exec if isinstance(raw_exec, list) else []
+    has_contradiction = False
+    contradicting_ev_ids: set[str] = set()
+    for card_kind, cards in cards_by_kind.items():
         if not isinstance(cards, list):
             continue
         for card in cards:
-            if isinstance(card, dict) and str(card.get("status") or "").strip().lower() in (
-                "fail",
-                "failed",
-                "contradicted",
-                "refuted",
-            ):
-                return True
-    return False
+            if not isinstance(card, dict):
+                continue
+            if card_kind == "execution" and _is_disclosed_failed_fork(card, all_exec_cards):
+                continue
+            status = str(card.get("status") or "").strip().lower()
+            card_contradicts = status in ("fail", "failed", "contradicted", "refuted")
+            if not card_contradicts and card_kind == "citation" and status not in ("not_run", "not_applicable"):
+                details = card.get("details")
+                if isinstance(details, dict) and (
+                    is_contradicting_relation(details.get("support_relation"))
+                    or is_contradicting_relation(details.get("relation"))
+                ):
+                    card_contradicts = True
+            if card_contradicts:
+                has_contradiction = True
+                raw_eids = card.get("evidence_ids")
+                if isinstance(raw_eids, (list, tuple)):
+                    for eid in raw_eids:
+                        if isinstance(eid, str) and eid:
+                            contradicting_ev_ids.add(eid)
+    return has_contradiction, contradicting_ev_ids
+
+
+def _claim_has_contradiction(claim: dict) -> bool:
+    return _claim_contradiction_info(claim)[0]
 
 
 def _context_from_claim(
@@ -816,9 +890,12 @@ def _context_from_claim(
     replication_links: list[dict] | None = None,
 ) -> dict:
     claim_id = claim.get("id")
+    raw_cards = claim.get("provenance_cards")
+    provenance_cards = dict(raw_cards) if isinstance(raw_cards, dict) else {}
+    exec_cards = provenance_cards.get("execution")
     card_groups = {
         c.get("details", {}).get("run_group")
-        for c in (claim.get("provenance_cards") or {}).get("execution", ())
+        for c in (exec_cards if isinstance(exec_cards, (list, tuple)) else ())
         if isinstance(c, dict) and isinstance(c.get("details"), dict) and c["details"].get("run_group")
     }
     scoped_exec = []
@@ -833,15 +910,22 @@ def _context_from_claim(
             continue
         scoped_exec.append(ev_rec)
 
+    claim_has_contradiction, contra_ev_ids = _claim_contradiction_info(claim)
+    raw_checks = claim.get("checks")
+    raw_stat = claim.get("statistical_report")
     return {
         "effect_records": list(claim.get("effect_records") or ()),
-        "checks": dict(claim.get("checks") or {}),
-        "statistical_report": dict(claim.get("statistical_report") or {}),
-        "design_packages": dict(claim.get("design_packages") or {}),
-        "provenance_cards": dict(claim.get("provenance_cards") or {}),
+        "checks": dict(raw_checks) if isinstance(raw_checks, dict) else {},
+        "statistical_report": dict(raw_stat) if isinstance(raw_stat, dict) else {},
+        "design_packages": _normalize_design_packages(claim.get("design_packages")),
+        "provenance_cards": provenance_cards,
         "claim_evidence_ids": list(claim.get("evidence_ids") or ()),
-        "claim_has_contradiction": _claim_has_contradiction(claim),
-        "evidence_verifications": _derive_evidence_verifications(evidence_by_id or {}, verification=verification),
+        "claim_has_contradiction": claim_has_contradiction,
+        "evidence_verifications": _derive_evidence_verifications(
+            evidence_by_id or {},
+            verification=verification,
+            contradicting_evidence_ids=contra_ev_ids,
+        ),
         "exec_events": scoped_exec,
         "replication_links": list(replication_links or ()),
     }
@@ -1081,6 +1165,7 @@ def evaluate_case_triggers(
     against_verification: dict | None = None,
     against_exec_events: list[dict] | None = None,
     against_evidence_by_id: dict[str, dict] | None = None,
+    against_effect_record_ids: dict[str, set[str]] | None = None,
 ) -> dict:
     """Evaluate all claim/decision triggers for a case across against_case, observations, or live workspace."""
     case_id = case["case_id"]
@@ -1137,12 +1222,15 @@ def evaluate_case_triggers(
                         **v,
                         "contradicts": bool(v.get("contradicts")) or v.get("status") == "contradicts",
                     }
+            raw_obs_checks = obs.get("checks")
+            raw_obs_stat = obs.get("statistical_report")
+            raw_obs_cards = obs.get("provenance_cards")
             ctx = {
                 "effect_records": list(obs.get("effect_records") or ()),
-                "checks": dict(obs.get("checks") or {}),
-                "statistical_report": dict(obs.get("statistical_report") or {}),
-                "design_packages": dict(obs.get("design_packages") or {}),
-                "provenance_cards": dict(obs.get("provenance_cards") or {}),
+                "checks": dict(raw_obs_checks) if isinstance(raw_obs_checks, dict) else {},
+                "statistical_report": dict(raw_obs_stat) if isinstance(raw_obs_stat, dict) else {},
+                "design_packages": _normalize_design_packages(obs.get("design_packages")),
+                "provenance_cards": dict(raw_obs_cards) if isinstance(raw_obs_cards, dict) else {},
                 "claim_evidence_ids": [],
                 "claim_has_contradiction": bool(obs.get("claim_has_contradiction")),
                 "evidence_verifications": obs_ev_verifications,
@@ -1178,6 +1266,9 @@ def evaluate_case_triggers(
                     exec_events=against_exec_events,
                     replication_links=rep_links,
                 )
+                if against_effect_record_ids is not None:
+                    allowed_records = against_effect_record_ids.get(cid, set())
+                    ctx["effect_records"] = [r for r in ctx["effect_records"] if r.get("id") in allowed_records]
             else:
                 ctx = {
                     "effect_records": [],
@@ -1237,307 +1328,11 @@ def evaluate_case_triggers(
     }
 
 
-def _detect_cycles(adj: dict[str, list[str]]) -> bool:
-    state: dict[str, int] = {}
-
-    def _visit(node: str) -> bool:
-        st = state.get(node, 0)
-        if st == 1:
-            return True
-        if st == 2:
-            return False
-        state[node] = 1
-        for nxt in adj.get(node, ()):
-            if _visit(nxt):
-                return True
-        state[node] = 2
-        return False
-
-    return any(_visit(n) for n in adj if state.get(n, 0) == 0)
-
-
-def _compute_active_standing(
-    node_id: str,
-    case_id: str,
-    incoming_edges: list[dict],
-    superseded_case_ids: set[str],
-    dec_by_node: dict[str, dict | None],
-) -> str:
-    effective_relations: set[str] = set()
-    for edge in incoming_edges:
-        rel = edge["relation"]
-        ds_dec = dec_by_node.get(edge["to_node_id"])
-        if edge.get("status") != "effective" or ds_dec is None or ds_dec.get("verdict") not in _POSITIVE_VERDICTS:
-            # A failed/inconclusive follow-up attempt does not alter prior standing.
-            continue
-        effective_relations.add(rel)
-
-    for rel, standing in _STANDING_PRECEDENCE:
-        if rel in effective_relations:
-            return standing
-    if case_id in superseded_case_ids:
-        return "superseded"
-    return "current"
-
-
-def adjudication_is_effective(case: dict) -> bool:
-    """A pending or held successor is visible in the graph but has no effect."""
-    if case.get("state") not in ("adjudicated", "export_pending", "exported") or not case.get("adjudication"):
-        return False
-    if (case.get("verification") or {}).get("status") == "blocked":
-        return False
-    for event in reversed(case.get("human_decisions") or ()):
-        if event.get("decision") == "accept":
-            break
-        if event.get("decision") in ("pause", "challenge", "defer"):
-            return False
-    return True
-
-
 def build_claim_graph(cases: list[dict], *, case_id: str | None = None, claim_id: str | None = None) -> dict:
     """Construct the longitudinal cross-case claim graph DAG and verdict/standing trajectories."""
-    cases_by_id = {c["case_id"]: c for c in cases}
-    if case_id is not None and case_id not in cases_by_id:
-        fail("unknown_case", f"case_id '{case_id}' does not exist in this workspace")
-    if case_id is not None and claim_id is not None:
-        target_claims = {c["id"] for c in cases_by_id[case_id].get("claims", ())}
-        if claim_id not in target_claims:
-            fail("unknown_claim", f"claim_id '{claim_id}' does not exist in case '{case_id}'")
-
-    ordered_cases = sorted(cases, key=lambda c: (c.get("created_at") or "", c["case_id"]))
-    case_edges: list[dict] = []
-    downstream_cases_map: dict[str, list[str]] = {c["case_id"]: [] for c in ordered_cases}
-    superseded_case_ids: set[str] = set()
-
-    for c in ordered_cases:
-        cid = c["case_id"]
-        rel = c.get("case_relation")
-        seen_parents: set[str] = set()
-        for pid in c.get("prior_case_ids") or ():
-            if pid in cases_by_id and pid != cid:
-                edge_type = rel or "follow_up"
-                case_edges.append({"from_case_id": pid, "to_case_id": cid, "edge_type": edge_type})
-                downstream_cases_map[pid].append(cid)
-                seen_parents.add(pid)
-        sup_id = c.get("supersedes_case_id")
-        if sup_id and sup_id in cases_by_id and sup_id != cid:
-            decisions = (c.get("adjudication") or {}).get("decisions") or []
-            effective = adjudication_is_effective(c) and bool(decisions) and all(d.get("verdict") in _POSITIVE_VERDICTS for d in decisions)
-            if effective:
-                superseded_case_ids.add(sup_id)
-            if sup_id not in seen_parents:
-                downstream_cases_map[sup_id].append(cid)
-            case_edges.append({"from_case_id": sup_id, "to_case_id": cid, "edge_type": "supersedes", "status": "effective" if effective else "pending"})
-
-    dec_by_node: dict[str, dict | None] = {}
-    claim_by_node: dict[str, dict] = {}
-    for c in ordered_cases:
-        cid = c["case_id"]
-        decs = {}
-        if c.get("adjudication"):
-            for dec in c["adjudication"].get("decisions", ()):
-                decs[dec["claim_id"]] = dec
-        for clm in c.get("claims", ()):
-            nid = f"{cid}:{clm['id']}"
-            claim_by_node[nid] = clm
-            dec_by_node[nid] = decs.get(clm["id"])
-
-    claim_edges: list[dict] = []
-    downstream_by_node: dict[str, list[dict]] = {nid: [] for nid in claim_by_node}
-    upstream_by_node: dict[str, list[dict]] = {nid: [] for nid in claim_by_node}
-
-    for c in ordered_cases:
-        cid = c["case_id"]
-        for clm in c.get("claims", ()):
-            to_nid = f"{cid}:{clm['id']}"
-            to_dec = dec_by_node[to_nid]
-            for lnk in clm.get("prior_claim_links") or ():
-                from_cid = lnk["prior_case_id"]
-                from_clmid = lnk["prior_claim_id"]
-                from_nid = f"{from_cid}:{from_clmid}"
-                from_clm = claim_by_node.get(from_nid)
-                from_dec = dec_by_node.get(from_nid)
-                from_type = (from_dec or from_clm or {}).get("claim_type")
-                from_level = (from_dec or from_clm or {}).get("evidence_level")
-                to_type = (to_dec or clm).get("claim_type")
-                to_level = (to_dec or clm).get("evidence_level")
-                edge = {
-                    "status": "effective" if adjudication_is_effective(c) and to_dec and to_dec.get("verdict") in _POSITIVE_VERDICTS else "pending",
-                    "from_case_id": from_cid,
-                    "from_claim_id": from_clmid,
-                    "to_case_id": cid,
-                    "to_claim_id": clm["id"],
-                    "from_node_id": from_nid,
-                    "to_node_id": to_nid,
-                    "relation": lnk["relation"],
-                    "reason": lnk["reason"],
-                    "triggered_reversal_id": lnk.get("triggered_reversal_id"),
-                    "verdict_transition": {
-                        "from": from_dec.get("verdict") if from_dec else None,
-                        "to": to_dec.get("verdict") if to_dec else None,
-                    },
-                    "level_transition": {
-                        "from": f"{from_type} x {from_level}" if from_type and from_level else from_level,
-                        "to": f"{to_type} x {to_level}" if to_type and to_level else to_level,
-                    },
-                }
-                claim_edges.append(edge)
-                if from_nid in downstream_by_node:
-                    downstream_by_node[from_nid].append(edge)
-                if to_nid in upstream_by_node:
-                    upstream_by_node[to_nid].append(edge)
-
-    claim_nodes_all: list[dict] = []
-    for c in ordered_cases:
-        cid = c["case_id"]
-        for clm in c.get("claims", ()):
-            nid = f"{cid}:{clm['id']}"
-            dec = dec_by_node[nid]
-            triggers = collect_claim_triggers(clm, dec)
-            standing = _compute_active_standing(
-                nid,
-                cid,
-                downstream_by_node.get(nid, ()),
-                superseded_case_ids,
-                dec_by_node,
-            )
-            claim_nodes_all.append({
-                "node_id": nid,
-                "case_id": cid,
-                "claim_id": clm["id"],
-                "text": (dec or clm).get("revised_text") or clm.get("text"),
-                "scope": (dec or clm).get("scope"),
-                "claim_type": (dec or clm).get("claim_type"),
-                "evidence_level": (dec or clm).get("evidence_level") or clm.get("level"),
-                "frozen_claim_type": clm.get("claim_type"),
-                "frozen_evidence_level": clm.get("evidence_level") or clm.get("level"),
-                "verdict": dec.get("verdict") if dec else None,
-                "forecast_probability": dec.get("forecast_probability") if dec else None,
-                "trigger_count": len(triggers),
-                "prior_links_count": len(clm.get("prior_claim_links") or ()),
-                "downstream_links_count": len(downstream_by_node.get(nid, ())),
-                "active_standing": standing,
-            })
-
-    case_nodes_all = [
-        {
-            "case_id": c["case_id"],
-            "question": c["question"],
-            "domain": c["domain"],
-            "state": c["state"],
-            "schema_version": c.get("schema_version", 1),
-            "created_at": c.get("created_at"),
-            "prior_case_ids": list(c.get("prior_case_ids") or ()),
-            "supersedes_case_id": c.get("supersedes_case_id"),
-            "case_relation": c.get("case_relation"),
-            "claim_count": len(c.get("claims", ())),
-            "downstream_case_ids": sorted(set(downstream_cases_map.get(c["case_id"], ()))),
-        }
-        for c in ordered_cases
-    ]
-
-    if case_id is not None or claim_id is not None:
-        # Filter to connected component around the requested case/claim(s).
-        seed_claims: set[str] = set()
-        seed_cases: set[str] = set()
-        if case_id is not None:
-            seed_cases.add(case_id)
-            if claim_id is not None:
-                seed_claims.add(f"{case_id}:{claim_id}")
-            else:
-                seed_claims.update(
-                    f"{case_id}:{clm['id']}" for clm in cases_by_id[case_id].get("claims", ())
-                )
-        elif claim_id is not None:
-            for c in ordered_cases:
-                for clm in c.get("claims", ()):
-                    if clm["id"] == claim_id:
-                        seed_claims.add(f"{c['case_id']}:{claim_id}")
-                        seed_cases.add(c["case_id"])
-
-        keep_claims = set(seed_claims)
-        claim_undir: dict[str, set[str]] = {n["node_id"]: set() for n in claim_nodes_all}
-        for e in claim_edges:
-            if e["from_node_id"] in claim_undir and e["to_node_id"] in claim_undir:
-                claim_undir[e["from_node_id"]].add(e["to_node_id"])
-                claim_undir[e["to_node_id"]].add(e["from_node_id"])
-        stack = list(keep_claims)
-        while stack:
-            cur = stack.pop()
-            for nb in claim_undir.get(cur, ()):
-                if nb not in keep_claims:
-                    keep_claims.add(nb)
-                    stack.append(nb)
-
-        keep_cases = set(seed_cases) | {nid.split(":", 1)[0] for nid in keep_claims}
-        case_undir: dict[str, set[str]] = {c["case_id"]: set() for c in ordered_cases}
-        for ce in case_edges:
-            if ce["from_case_id"] in case_undir and ce["to_case_id"] in case_undir:
-                case_undir[ce["from_case_id"]].add(ce["to_case_id"])
-                case_undir[ce["to_case_id"]].add(ce["from_case_id"])
-        cstack = list(keep_cases)
-        while cstack:
-            cur = cstack.pop()
-            for nb in case_undir.get(cur, ()):
-                if nb not in keep_cases:
-                    keep_cases.add(nb)
-                    cstack.append(nb)
-
-        if claim_id is None:
-            keep_claims.update(
-                n["node_id"] for n in claim_nodes_all if n["case_id"] in keep_cases
-            )
-
-        case_nodes = [n for n in case_nodes_all if n["case_id"] in keep_cases]
-        case_edges = [e for e in case_edges if e["from_case_id"] in keep_cases and e["to_case_id"] in keep_cases]
-        claim_nodes = [n for n in claim_nodes_all if n["node_id"] in keep_claims]
-        claim_edges = [e for e in claim_edges if e["from_node_id"] in keep_claims and e["to_node_id"] in keep_claims]
-    else:
-        case_nodes = case_nodes_all
-        claim_nodes = claim_nodes_all
-
-    node_set = {n["node_id"] for n in claim_nodes}
-    claim_adj: dict[str, list[str]] = {nid: [] for nid in node_set}
-    indegree: dict[str, int] = {nid: 0 for nid in node_set}
-    for e in claim_edges:
-        if e["from_node_id"] in node_set and e["to_node_id"] in node_set:
-            claim_adj[e["from_node_id"]].append(e["to_node_id"])
-            indegree[e["to_node_id"]] += 1
-
-    case_adj: dict[str, list[str]] = {n["case_id"]: [] for n in case_nodes}
-    for ce in case_edges:
-        if ce["from_case_id"] in case_adj and ce["to_case_id"] in case_adj:
-            case_adj[ce["from_case_id"]].append(ce["to_case_id"])
-
-    cycle_detected = _detect_cycles(claim_adj) or _detect_cycles(case_adj)
-
-    # Extract root-to-leaf longitudinal claim chains (cycle-guarded).
-    roots = sorted(nid for nid, deg in indegree.items() if deg == 0)
-    if not roots and node_set:
-        roots = sorted(node_set)
-    chains: list[list[str]] = []
-
-    def _dfs_chains(node: str, path: list[str], seen: set[str]) -> None:
-        children = [nxt for nxt in sorted(claim_adj.get(node, ())) if nxt not in seen]
-        if not children:
-            chains.append(list(path))
-            return
-        for nxt in children:
-            seen.add(nxt)
-            path.append(nxt)
-            _dfs_chains(nxt, path, seen)
-            path.pop()
-            seen.remove(nxt)
-
-    for root in roots:
-        _dfs_chains(root, [root], {root})
-
-    return {
-        "filter": {"case_id": case_id, "claim_id": claim_id},
-        "case_nodes": case_nodes,
-        "case_edges": case_edges,
-        "claim_nodes": claim_nodes,
-        "claim_edges": claim_edges,
-        "chains": chains,
-        "cycle_detected": cycle_detected,
-    }
+    return _build_claim_graph_impl(
+        cases,
+        case_id=case_id,
+        claim_id=claim_id,
+        collect_triggers_fn=collect_claim_triggers,
+    )

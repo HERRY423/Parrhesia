@@ -95,6 +95,63 @@ class ChatGPTKitTests(unittest.TestCase):
             self.assertEqual(repeated.returncode, 2)
             self.assertIn("already exists", json.loads(repeated.stderr)["message"])
 
+    def test_kit_content_p0_defaults_isolation_provenance_and_self_contained_templates(self):
+        from parrhesia.claims import TYPE_LEVELS
+
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "kit"
+            kit.prepare(output)
+
+            start_here = (output / "START-HERE.md").read_text(encoding="utf-8")
+            for required in (
+                "01-frozen-input-blind.md",
+                "Project-Only Memory",
+                "Unpersonalized Temporary Chat",
+                "session_anchored",
+                "AUROC 0.84",
+            ):
+                self.assertIn(required, start_here)
+
+            guide = (output / "docs/chatgpt-integration.md").read_text(encoding="utf-8")
+            for required in (
+                "01-frozen-input-blind.md",
+                "session_anchored",
+                "Code Interpreter",
+                "Project-Only Memory",
+                "Unpersonalized Temporary Chat",
+                "无机械哈希核对",
+            ):
+                self.assertIn(required, guide)
+
+            entry = (output / "templates/AGENTS.parrhesia.chatgpt.md").read_text(encoding="utf-8")
+            self.assertIn("AUROC 0.84", entry)
+            self.assertIn("01-frozen-input-blind.md", entry)
+            for forbidden in ("$0.10", "$1.00", "可能超过 1 GB", "parrhesia-review", "packet_id", "input_digest", "review_packet", "本插件", "本地可运行"):
+                self.assertNotIn(forbidden, entry)
+
+            blind = (output / "templates/chatgpt/01-frozen-input-blind.md").read_text(encoding="utf-8")
+            self.assertNotIn("当前最佳解释", blind)
+            self.assertNotIn("区分检验设计", blind)
+            self.assertNotIn("字段见主指令", blind)
+            self.assertIn("claim_direction", blind)
+            self.assertIn("endpoint_role", blind)
+
+            for role_file in ("templates/chatgpt/02-overclaim.md", "templates/chatgpt/03-underclaim.md"):
+                role_text = (output / role_file).read_text(encoding="utf-8")
+                self.assertIn("AUROC 0.84", role_text)
+                for ctype in TYPE_LEVELS:
+                    self.assertIn(f"`{ctype}`", role_text)
+
+            adjudication = (output / "templates/chatgpt/04-adjudication.md").read_text(encoding="utf-8")
+            for required in ("6 个汉字", "symmetry_audit", "partially_supported", "仅在报告开头显式标明一次“非独立审查，未排除起草偏差”"):
+                self.assertIn(required, adjudication)
+            self.assertNotIn("在报告开头和每条判定旁标", adjudication)
+
+            l2_ref = (output / "skills/parrhesia-l2-reference/SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("session_anchored", l2_ref)
+            self.assertNotIn("L1-Judge", l2_ref)
+            self.assertNotIn("## 8.", l2_ref)
+
 
 if __name__ == "__main__":
     unittest.main()

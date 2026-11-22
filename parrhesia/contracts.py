@@ -10,6 +10,15 @@ GENERAL_LEVELS = ("descriptive", *ENGINEERING_LEVELS)
 LEVELS = (*SCIENTIFIC_LEVELS, *ENGINEERING_LEVELS)
 DOMAINS = ("scientific", "general")
 VERDICTS = ("supported", "partially_supported", "unsupported", "insufficient_evidence")
+SYMMETRY_MODES = ("enforced", "advisory")
+ACTIONABLE_STANCES = (
+    "adopt_within_scope",
+    "run_discriminating_test",
+    "narrow_scope_and_retest",
+    "pause_pending_qc",
+    "abandon_hypothesis",
+    "monitor_trigger",
+)
 ROLES = ("overclaim", "underclaim")
 CHECK_NAMES = ("quality", "batch", "unit", "assumptions", "multiplicity", "leakage", "baseline")
 CHECK_STATUSES = ("pass", "fail", "unknown", "not_applicable")
@@ -17,7 +26,9 @@ ALTERNATIVE_STATUSES = ("excluded", "partially_excluded", "not_excluded")
 PROVENANCE = ("reported", "observed", "synthetic")
 ORIGINS = ("prespecified", "exploratory", "unknown")
 ACTIONS = (
-    "create_case", "register_evidence", "register_hypothesis", "scaffold_claim", "set_ledger",
+    "create_case", "register_evidence", "register_hypothesis", "scaffold_claim", "set_ledger", "upsert_claim",
+    "draft_manuscript", "import_artifact", "extract_effects",
+    "explore", "analyze_design",
     "freeze", "review_packet", "submit_review", "adjudication_packet",
     "submit_adjudication", "verify", "get_case", "export", "record_human_decision",
     "claim_graph", "evaluate_triggers", "record_calibration_outcome", "calibration_report",

@@ -1,0 +1,14 @@
+{
+  "version": "text-semantic-boundaries-v1",
+  "status": "synthetic_development_diagnostic_not_accuracy_benchmark",
+  "cases": [
+    {"id":"U01","family":"english_null","claim":"The intervention improves recovery.","source":"Recovery profiles in the two study groups tracked each other closely throughout follow-up.","interpretation":"Candidate overclaim; no contrast, interval, or equivalence margin is supplied. Similar profiles alone do not identify a null effect."},
+    {"id":"U02","family":"english_null","claim":"The intervention improves recovery.","source":"Recovery profiles in the two study groups tracked each other closely at enrollment; a prespecified follow-up contrast favored the intervention.","interpretation":"Baseline similarity is compatible with later benefit. A global similarity blacklist would confuse time points."},
+    {"id":"U03","family":"cjk_null","claim":"干预减缓了症状恶化。","source":"整个随访期间，两组症状变化轨迹近乎重叠。","interpretation":"可能夸大，但缺少直接差异、区间和等效界值，不能仅据轨迹近似判无效。"},
+    {"id":"U04","family":"cjk_null","claim":"干预减缓了症状恶化。","source":"两组轨迹的置信带存在重叠；预设的组间变化量直接对比支持干预获益。","interpretation":"置信带重叠不自动否定直接组间对比，需要实际估计量和区间。"},
+    {"id":"U05","family":"routine_care_assignment","claim":"Treatment allocation reduces readmission.","source":"Clinicians selected treatment during routine visits; subsequent readmission was less frequent among treated patients.","interpretation":"Confounding is a strong alternative. Plain narrative does not establish exchangeability or a causal estimand."},
+    {"id":"U06","family":"routine_care_assignment","claim":"Treatment allocation conditionally reduces readmission under the stated identification assumptions.","source":"Clinicians selected treatment during routine visits; the prespecified analysis used an exogenous supply interruption as an instrument and assessed exclusion and monotonicity assumptions.","interpretation":"Potential quasi-experimental identification cannot be excluded from clinician selection alone. Requires design/assumption assessment, not automatic support."},
+    {"id":"U07","family":"model_selection","claim":"The selected system generalizes better.","source":"Investigators compared many configurations on a development partition and reported the most favorable score from that same partition.","interpretation":"Selection optimism threatens generalization; requires split identity and a full search denominator."},
+    {"id":"U08","family":"model_selection","claim":"The selected system generalizes better.","source":"Investigators compared many configurations on a development partition; after locking the selected system they evaluated a previously untouched test cohort.","interpretation":"Ordinary development selection is compatible with legitimate independent evaluation. Requires verification of split separation."}
+  ]
+}

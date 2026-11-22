@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "parrhesia-review"
-version = "0.3.0"
+version = "0.4.0"
 description = "Independent evidence reviews and explicit, traceable adjudication for agent plugins"
 requires-python = ">=3.11"
 dependencies = []
@@ -16,7 +16,7 @@ parrhesia = "parrhesia.cli:main"
 packages = ["parrhesia"]
 
 [tool.setuptools.data-files]
-"share/parrhesia" = ["docs/contract.md"]
+"share/parrhesia" = ["docs/contract.md", "docs/artifact-ingestion.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

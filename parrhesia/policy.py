@@ -13,6 +13,9 @@ TARGETS = {
     "chatgpt": "templates/AGENTS.parrhesia.chatgpt.md",
     "skill": "skills/parrhesia-review/SKILL.md",
     "l2_reference": "skills/parrhesia-l2-reference/SKILL.md",
+    "workflow_reference": "skills/parrhesia-review/references/workflow.md",
+    "integration_reference": "skills/parrhesia-review/references/integrations.md",
+    "basic_reference": "skills/parrhesia-review/references/basics.md",
     "frozen_input": "templates/chatgpt/01-frozen-input.md",
     "frozen_input_blind": "templates/chatgpt/01-frozen-input-blind.md",
     "overclaim": "templates/chatgpt/02-overclaim.md",
@@ -20,13 +23,19 @@ TARGETS = {
     "adjudication": "templates/chatgpt/04-adjudication.md",
     "handoff": "templates/chatgpt/05-handoff-record.md",
 }
-MODULES = ("compact_core", "core", "l2_protocol", "plugin_tools", "agentmuxer")
+MODULES = ("epistemic_core", "tool_host_l2", "chatgpt_l2")
+SNIPPETS = (
+    "chatgpt_frozen_body",
+    "chatgpt_frozen_tail",
+    "chatgpt_reviewer_ref",
+    "chatgpt_reviewer_manifest",
+)
 TARGET_MODULES = {
-    "repository": ("compact_core",),
-    "generic": ("core", "l2_protocol", "plugin_tools", "agentmuxer"),
-    "codex": ("compact_core",),
-    "chatgpt": ("core", "l2_protocol"),
-    "skill": ("core", "l2_protocol", "plugin_tools", "agentmuxer"),
+    "repository": ("epistemic_core", "tool_host_l2"),
+    "generic": ("epistemic_core", "tool_host_l2"),
+    "codex": ("epistemic_core", "tool_host_l2"),
+    "chatgpt": ("epistemic_core", "chatgpt_l2"),
+    "basic_reference": ("epistemic_core", "tool_host_l2"),
 }
 PRIMARY_TARGETS = tuple(TARGET_MODULES.keys())
 GENERATED = "<!-- Generated from policy/parrhesia-policy.md; DO NOT EDIT. Run: python scripts/generate-policy.py -->"
@@ -38,15 +47,15 @@ def render(source: str) -> dict[str, str]:
     source = source.replace("\r\n", "\n")
     matches = list(PATTERN.finditer(source))
     names = [match[1] for match in matches]
-    expected_sections = set(MODULES) | set(TARGETS)
+    expected_sections = set(MODULES) | set(SNIPPETS) | set(TARGETS)
     if len(names) != len(set(names)) or set(names) != expected_sections:
         raise ValueError("Policy source has missing, duplicate or unknown sections")
     if source.count("<!-- source:") != 2 * len(matches):
         raise ValueError("Malformed policy section markers")
     sections = {match[1]: match[2].strip() for match in matches}
-    for mod in MODULES:
+    for mod in (*MODULES, *SNIPPETS):
         if not sections[mod] or "{{" in sections[mod]:
-            raise ValueError(f"Module '{mod}' must be nonempty and contain no placeholders")
+            raise ValueError(f"Module or snippet '{mod}' must be nonempty and contain no placeholders")
 
     output = {}
     for name, path in TARGETS.items():
@@ -77,6 +86,10 @@ def render(source: str) -> dict[str, str]:
         else:
             if "<!-- modules:" in template:
                 raise ValueError(f"Unexpected module declaration in non-primary target: {name}")
+            for snip in SNIPPETS:
+                placeholder = f"{{{{{snip}}}}}"
+                if placeholder in result:
+                    result = result.replace(placeholder, sections[snip])
 
         if "{{" in result or "}}" in result:
             raise ValueError(f"Unresolved placeholder: {name}")

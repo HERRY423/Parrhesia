@@ -16,6 +16,11 @@ import uuid
 BEGIN = "<!-- parrhesia:managed:start -->"
 END = "<!-- parrhesia:managed:end -->"
 SKILL_NAMES = ("parrhesia-review", "parrhesia-l2-reference")
+SKILL_REQUIRED_FILES = {
+    "parrhesia-review": ("SKILL.md", "references/basics.md", "references/workflow.md", "references/integrations.md"),
+    "parrhesia-l2-reference": ("SKILL.md",),
+}
+RUNTIME_DOCUMENTS = ("docs/contract.md", "docs/artifact-ingestion.md")
 POLICY_MODES = ("compact", "full")
 
 _POLICY_TEMPLATE_MAP = {
@@ -115,7 +120,7 @@ def collect_runtime_payloads(source: Path, runtime_prefix: str) -> dict[str, byt
         source / "plugin.json",
         source / "mcp.json",
         source / "scripts" / "run-mcp.py",
-        source / "docs" / "contract.md",
+        *(source / name for name in RUNTIME_DOCUMENTS),
     ]
     for item in required:
         if not item.is_file():
@@ -126,7 +131,7 @@ def collect_runtime_payloads(source: Path, runtime_prefix: str) -> dict[str, byt
         source / "plugin.json",
         source / "mcp.json",
         source / "scripts" / "run-mcp.py",
-        source / "docs" / "contract.md",
+        *(source / name for name in RUNTIME_DOCUMENTS),
     ]
     payloads: dict[str, bytes] = {}
     source_resolved = source.resolve()
@@ -146,6 +151,9 @@ def collect_skills_payloads(
     """Collect one or more named skill directories under source/skills/."""
     prefix = skills_prefix.strip("/")
     source_resolved = source.resolve()
+    errors = skill_layout_errors(source, "skills", skill_names)
+    if errors:
+        raise ValueError("Incomplete skill bundle: " + "; ".join(errors))
     payloads: dict[str, bytes] = {}
     for name in skill_names:
         skill_dir = source / "skills" / name
@@ -153,6 +161,7 @@ def collect_skills_payloads(
         if not entrypoint.is_file():
             raise ValueError(f"Incomplete plugin: missing {entrypoint.relative_to(source).as_posix()}")
         for item in sorted(skill_dir.rglob("*")):
+            contained(source, item.relative_to(source).as_posix())
             if not item.is_file() or "__pycache__" in item.parts:
                 continue
             reject_link(item)
@@ -160,6 +169,21 @@ def collect_skills_payloads(
                 raise ValueError(f"Skill includes a path outside the package root: {item}")
             payloads[f"{prefix}/{name}/{item.relative_to(skill_dir).as_posix()}"] = item.read_bytes()
     return payloads
+
+
+def skill_layout_errors(root: Path, skills_prefix: str, skill_names: tuple[str, ...] = SKILL_NAMES) -> list[str]:
+    """One source of required entrypoints/references for every filesystem adapter."""
+    errors = []
+    for name in skill_names:
+        for relative in SKILL_REQUIRED_FILES.get(name, ("SKILL.md",)):
+            path = contained(root, f"{skills_prefix}/{name}/{relative}")
+            if not path.is_file():
+                errors.append(f"Missing required skill file: {skills_prefix}/{name}/{relative}")
+            elif relative == "SKILL.md":
+                body = path.read_text(encoding="utf-8-sig")
+                if not body.startswith("---\n") or f"name: {name}\n" not in body[:300]:
+                    errors.append(f"Invalid skill frontmatter: {skills_prefix}/{name}/SKILL.md")
+    return errors
 
 
 def load_policy_body(source: Path, mode: str = "compact") -> str:
@@ -176,12 +200,22 @@ def load_policy_body(source: Path, mode: str = "compact") -> str:
     if start_marker in text and end_marker in text:
         _, _, rest = text.partition(start_marker)
         body, _, _ = rest.partition(end_marker)
-        return body.strip()
-    lines = [
-        line for line in text.splitlines()
-        if not line.strip().startswith("<!-- Generated from policy/parrhesia-policy.md")
-    ]
-    return "\n".join(lines).strip()
+        body = body.strip()
+    else:
+        lines = [
+            line for line in text.splitlines()
+            if not line.strip().startswith("<!-- Generated from policy/parrhesia-policy.md")
+        ]
+        body = "\n".join(lines).strip()
+    if mode == "full":
+        # Explicit legacy full mode still means all applicable rules. Default
+        # compact installs keep these references in the on-demand skill tree.
+        for rel in (
+            "skills/parrhesia-l2-reference/SKILL.md",
+            "skills/parrhesia-review/references/workflow.md",
+        ):
+            body += "\n\n" + (source / rel).read_text(encoding="utf-8").strip()
+    return body
 
 
 def merge_managed_block(
@@ -315,8 +349,12 @@ def commit_transaction(
             target = contained(root, relative)
             target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_name(f"{target.name}.parrhesia-{uuid.uuid4().hex}.tmp")
-            temporary.write_bytes(data)
-            os.replace(temporary, target)
+            try:
+                temporary.write_bytes(data)
+                os.replace(temporary, target)
+            finally:
+                if temporary.exists():
+                    temporary.unlink()
             applied_writes.append(relative)
         for relative in removals:
             target = contained(root, relative)

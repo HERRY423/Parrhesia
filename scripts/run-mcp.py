@@ -15,6 +15,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", help="Explicit project directory; overrides the environment.")
     parser.add_argument("--default-workspace", help="Client-provided persistent plugin workspace.")
+    parser.add_argument("--schema-mode", choices=("shared", "inline"), default="shared",
+                        help="Use inline for hosts without local JSON Schema reference support.")
+    parser.add_argument("--tool-profile", choices=("full", "review", "adjudication", "explore", "compact"), default="full",
+                        help="Limit advertised tools for a dedicated role session; not an access-control boundary.")
     args = parser.parse_args()
     selected = args.workspace or os.environ.get("PARRHESIA_WORKSPACE") or args.default_workspace
     if not selected or "${" in selected:
@@ -31,7 +35,8 @@ def main() -> None:
         parser.error("Bundled parrhesia/__main__.py is missing; reinstall the complete plugin.")
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(package_root))
-    sys.argv = ["parrhesia", "serve", "--workspace", str(workspace.resolve())]
+    sys.argv = ["parrhesia", "serve", "--workspace", str(workspace.resolve()),
+                "--schema-mode", args.schema_mode, "--tool-profile", args.tool_profile]
     runpy.run_module("parrhesia", run_name="__main__")
 
 
