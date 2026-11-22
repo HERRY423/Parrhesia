@@ -4,7 +4,9 @@
 
 **语言 / Language**：简体中文 · **[English](README.en.md)**
 
-**Parrhesia** 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的**本地证据校准与双审裁决插件**，配套单源生成的跨平台规则体系 `AGENTS.md`。它通过**认知分工解耦**与**确定性本地状态机（零第三方依赖，仅需 Python 3.11+ 标准库）**，用于约束大模型在科研分析、工程评测与技术决策中的“越级夸大、免责通胀、和稀泥”。独立审查需要宿主提供隔离上下文；对真实模型行为的净改善尚未测量，详见下方证据边界。
+**版本**：[v0.4.0](https://github.com/HERRY423/Parrhesia/releases/tag/v0.4.0)（[变更记录](CHANGELOG.md)） · **运行时**：Python 3.11+ 纯标准库（零第三方依赖） · **接口**：28 个 MCP 工具 / 5 档线缆配置档 · **CI**：[Windows & Ubuntu (v0.4.0)](https://github.com/HERRY423/Parrhesia/actions/runs/44977579853) · **协议**：[Apache-2.0](LICENSE)
+
+**Parrhesia** 是遵循 [Agent Plugins 1.0.0](https://agent-plugins.org/) 规范的**本地证据校准与双审裁决插件**，配套单源生成的跨平台规则体系 `AGENTS.md`。它通过**认知分工解耦**与**确定性本地状态机（零第三方依赖，仅需 Python 3.11+ 标准库）**，用于约束大模型在科研分析、工程评测与技术决策中的“越级夸大、免责通胀、和稀泥”。独立审查需要宿主提供隔离上下文或使用内置 OS 子进程沙箱运行器；确定性门控用于保障溯源、统计自洽与审查闭环，不替代领域同行评审，真实大模型行为净改善仍待按[对照评价方案](docs/evaluation-plan.md)盲评测量。
 
 ---
 
@@ -34,6 +36,36 @@
 
 ---
 
+## v0.4.0 核心亮点与差异化
+
+普通“让模型反思一遍”或单纯写一条规则提示词，仍是在同一上下文里自己写、自己夸、自己打圆场；通用代码/文献检查器也无法计算统计自洽性或阻止跨研究重复队列虚增结论。**Parrhesia `v0.4.0` 用一套纯 Python 标准库内核把盲审隔离、对称门控、方法学计算与跨研究综合变成可校验的工程约束：**
+
+1. **真·两阶段 `estimate_first` 盲审 + 物理 OS 子进程沙箱**
+   - `review_packet(stage="evidence_only")` 物理剥离 `question`、`draft`、`hypotheses`、作者主张与 `claim_direction`，分配阶段专属 `packet_nonce` 且禁止回放。
+   - CLI `parrhesia run-isolated` / `run-dual-review --two-stage-blind` 先在独立临时沙箱锁定 `stage1_locked_estimates`（计算 `stage1_estimate_sha256`），核验通过后才在第二沙箱揭示作者措辞；全程洗净敏感环境变量、重定向 `APPDATA`/`XDG_*`、支持 `--offline-env` 与 `--sandbox-mode strict_os`（Linux `bwrap` / macOS `sandbox-exec`，不可用时明确报 `sandbox_unavailable` 不静默降级）、核验 `.parrhesia` 快照防篡改（`sandbox_boundary_violation`）并签发工作区 HMAC `runner_seal`，同时以 `isolation_grade.boundaries` 诚实披露已强制与未覆盖边界。
+2. **双向对称强制门控（`symmetry_mode="enforced"`）**
+   - 行业里常见的检查往往只防夸大，结果模型用“证据有限、仅供参考”躺平逃避结论。Parrhesia v2 默认启用 `symmetry_mode="enforced"`：一端截停越级措辞、空手填 `pass`（`uncited_check_evidence`）与主终点跨零值/未过校正（`primary_effect_crosses_null` / `primary_effect_fails_multiplicity`）；另一端同步拦截无反证降级弃权（`unjustified_downgrade` / `abstention`）、空泛免责（`unjustified_overhedging`）、虚假平衡（`false_balance_neutrality`）与裸术语空改判，强制核验 `abstention_justification`、`actionable_stance` 与具体可观察改判条件。
+3. **11 模式主动型可计算方法学副驾驶（零第三方依赖）**
+   - 内置纯 Python 标准库统计与设计引擎，覆盖 **功效与最小可检测效应（`power`）**、**TOST 等效区间**、**E-value 未测混淆敏感度**、**整群伪重复设计效应（`design_effect`）**、**含探索分叉通胀的多重校正（`multiplicity_audit`）**、**Gelman-Stern 亚组交互与 DerSimonian-Laird 随机效应元分析（`interaction_heterogeneity`）**、**EPV 收缩与 Vickers 决策曲线净获益（`prediction_utility_audit`）**、**Manski 脱落最坏/最乐观与临界脱落率（`attrition_bounds`）**、**证据占优**、**全案体检（`case_audit`）** 与 **跨案综合（`lineage_synthesis`）**，并在 `explore`、`upsert_claim` 与盲审包中主动挂载盲态安全诊断。
+4. **纵向科研演化图谱与三层语义队列去重（`parrhesia synthesize`）**
+   - 通过只追加 DAG（`claim_graph`）、**5 类可执行改判触发器（`reversal_triggers`）**与来源绑定的**事后概率校准（`Brier` / `Log` / `ECE` / `MCE`）**，把单篇论文或单次分析纳入跨时间证据演化。
+   - 跨案活体综合自动执行 **三层语义队列去重**：Layer 1 追踪 `derived_from_evidence_ids` 祖先快照 SHA-256、规范 `cohort_id` 与 `NCT`/`GSE`/`phs`/DOI（同时允许同文献内多队列通过显式不同 `cohort_id` 合法并池）；Layer 2 对同 `n ≥ 20` 效应克隆及高文本 3-gram Jaccard（`≥ 0.65`）标出 `suspected_cohort_overlaps`，阻断伪复现直接升级为 `replicated_consistent`，一键生成带静态 SVG 森林图的只读离线 HTML 报告。
+5. **零依赖、线缆预算精简、全宿主单源驱动**
+   - 无需 `pip install` 任何第三方科学或网络包即可运行完整 MCP 服务、SQLite 事件 SHA-256 哈希链、多格式稿件与产物只读摄入（Markdown / LaTeX / DOCX / Quarto / HTML / JATS XML / PDF / `.ipynb` / `.xlsx` / `.parquet`）与离线报告；**28 个强类型 MCP 工具**通过 `$defs`/`$ref` 与 `sha256` 压缩并提供 **5 档线缆配置档**（`full` 81,519 B 至 `review` 10,892 B），从唯一规则源同步支持 Codex、Claude Code、Grok Build CLI、Antigravity 与 ChatGPT 网页端。
+
+### 对比一览：为什么不是“又一个 Prompt / Lint 插件”？
+
+| 维度 | 常见 Prompt / 单对话自审 | 通用文本 Lint / 文献检索插件 | Parrhesia `v0.4.0` |
+| :--- | :--- | :--- | :--- |
+| **审查独立性** | 同上下文自问自答，先入为主 | 无独立认知角色划分 | 角色解耦 + `evidence_only` 两阶段 `estimate_first` + OS 子进程沙箱与 HMAC `runner_seal` |
+| **反夸大 vs 反躺平** | 严打夸大就泛滥“仅供参考”，否则照常越级 | 仅作表面关键词提示 | `symmetry_mode="enforced"` 双向门控，同时拦截越级夸大与无反证降级/虚假平衡 |
+| **方法学与统计计算** | 依赖模型心算或外挂脚本口径不一 | 几乎不做研究设计与效应核验 | 11 模式纯标准库诊断 + `wald`/`student_t`/2×2 Fisher/GRIM/Holm-BH/主终点门控 |
+| **证据锚定与防作弊** | 可空口引用“文献/脚本支持”，修改流于表面 | 仅正则匹配格式或术语 | 文件 SHA-256 + 唯一原文 `quote` 词项关联 + `revised_text_quote` 实质替换核验 + 四角色分窗 |
+| **跨研究演化与去重** | 每次对话从零开始，同队列跨文易被重复计票 | 只检索摘要，不追踪纵向改判 | `claim_graph` + 三层语义队列去重 + 可执行 `reversal_triggers` + 事后概率校准 |
+| **部署与宿主适配** | 复制粘贴 Prompt，难以复现与审计 | 依赖特定平台或重型外部环境 | Python 3.11+ 纯标准库零依赖 · SQLite 事件哈希链 · 5 大平台原生适配 · 离网可用 |
+
+---
+
 ## 最小化认知负担：四档渐进工作流（`L0` / `L1` / `L1-Explore` / `L2`）
 
 Parrhesia **不为简单任务制造流程负担，也不在关键结论上放水**。日常使用无需记住复杂的工具参数，Agent 会按任务性质自动分流并在首行标明当前档位：
@@ -56,7 +88,7 @@ Parrhesia **不为简单任务制造流程负担，也不在关键结论上放�
 
 契约也可按需读取：先调用 `parrhesia_contract(section="index")`，再按目录 ID 读取相关章节。摘录带原文行号和文档指纹，可用 `expected_sha256` 防止混用修订版本；无参数调用仍返回兼容的全文。
 
-运行本地 MCP 服务与 CLI 仅需 **Python 3.11+**（纯标准库实现，**零第三方依赖**，无需 `pip install` 任何外部包）。
+运行本地 MCP 服务与 CLI 仅需 **Python 3.11+**（纯标准库实现，**零第三方依赖**，无需 `pip install` 任何外部包）；如需离线安装包，可在 [GitHub Releases (`v0.4.0`)](https://github.com/HERRY423/Parrhesia/releases/tag/v0.4.0) 获取标准 `wheel`（`parrhesia_review-0.4.0-py3-none-any.whl`）、分发压缩包（`parrhesia-0.4.0.zip`）与 `SHA256SUMS.txt` 校验清单。
 
 ### 方式一：Codex 插件市场安装（图形界面 / CLI）
 
@@ -67,7 +99,7 @@ Parrhesia **不为简单任务制造流程负担，也不在关键结论上放�
 | 弹窗字段 | 填写内容 | 说明 |
 | :--- | :--- | :--- |
 | **来源** | `HERRY423/Parrhesia`<br>*(或 `https://github.com/HERRY423/Parrhesia.git`)* | 若使用离线包或本地克隆，可直接选择包含 `.agents/plugins/marketplace.json` 的本地仓库根目录（如 `C:\Parrhesia`） |
-| **Git 引用** | `main` | 获取主分支最新 `0.4.0` 开发进展；如需固定历史验收包可填写对应 commit 或 `0.3.0` tag |
+| **Git 引用** | `v0.4.0` *(或 `main`)* | 使用 `v0.4.0` 固定当前正式发行版，或填写 `main` 跟踪主分支最新更新 |
 | **稀疏路径** | **留空** | 插件清单直接位于仓库根目录，**请勿填写**输入框灰字占位符 `plugins/codex` |
 
 点击右下角 **添加市场** 后，在插件市场列表中选择 **Parrhesia Marketplace** 并安装 **Parrhesia**。
@@ -75,8 +107,8 @@ Parrhesia **不为简单任务制造流程负担，也不在关键结论上放�
 #### 2. Codex CLI 命令行添加
 
 ```powershell
-# 从 GitHub 添加插件市场并安装插件
-codex plugin marketplace add HERRY423/Parrhesia --ref main
+# 从 GitHub 添加插件市场并安装插件（固定发行版可用 --ref v0.4.0）
+codex plugin marketplace add HERRY423/Parrhesia --ref v0.4.0
 codex plugin add parrhesia@parrhesia-marketplace
 
 # （可选）从本地克隆目录添加市场
@@ -112,7 +144,7 @@ claude plugin install parrhesia@parrhesia-marketplace
 
 Claude 专用 `.claude-plugin/plugin.json` 已内联声明 MCP 服务，使用 `${CLAUDE_PLUGIN_ROOT}` 定位启动脚本、`${CLAUDE_PLUGIN_DATA}/workspace` 保存默认台账，不依赖通用 `mcp.json` 的变量。使用支持 `userConfig` 和上述变量的新版 Claude Code；在 `/config` 的插件配置中将 `python` 设置为可用的 Python **3.11+** 解释器（默认 `python`；Linux/macOS 可改为 `python3`，也可填绝对路径）。如设置了 `PARRHESIA_WORKSPACE`，它必须是已存在的绝对目录，并优先于默认目录。备份台账后再卸载插件；Claude 的插件数据目录可能随卸载删除。
 
-已安装旧清单的用户需更新插件并重启会话，确认缓存清单含 `mcpServers`，且 `/mcp` 中 Parrhesia 已连接；安装成功不等于服务可用。当前修复通过 Claude Code 2.1.325 严格清单校验及独立 MCP 子进程验证，**尚未完成 Claude Code 真实会话工作流验收**，不扩大下文 `host_accepted` 范围。[Claude 官方清单与变量说明](https://code.claude.com/docs/en/plugins-reference)
+已安装旧清单的用户需更新插件并重启会话，确认缓存清单含 `mcpServers`，且 `/mcp` 中 Parrhesia 已连接；安装成功不等于服务可用。当前修复通过 Claude Code 2.1.325 严格清单校验及独立 MCP 子进程验证，**尚未完成 Claude Code 真实会话工作流验收**。[Claude 官方清单与变量说明](https://code.claude.com/docs/en/plugins-reference)
 
 #### 2. 标准 Agent Plugins 1.0.0 客户端挂载
 
@@ -321,33 +353,15 @@ python scripts/build-release.py --output dist/parrhesia-0.4.0.zip
 ```
 </details>
 
-本版本还提供反事实、保留集、不变性、P1/P2 等定向模式，见 `--help`。当前输入大小、10 项摄入回归和保留缺口见[评测刷新核验](docs/verification/evaluation-modernization-2026-11-17.md)；[作者负担试评](docs/evaluation/author-impact-pilot.md)已提供四组准备与记录工具，真实模型和作者收益仍未运行。这些 `0.4.0` 本地测试结果不代表旧安装版本自动具备同样能力。
+本版本还提供反事实、保留集、不变性、P1/P2 等定向模式，见 `--help`。当前输入大小、10 项摄入回归和保留缺口见[评测刷新核验](docs/verification/evaluation-modernization-2026-11-17.md)；[作者负担试评](docs/evaluation/author-impact-pilot.md)已提供四组准备与记录工具，真实模型和作者收益仍未运行。
 
 ---
-
-## 自身证据边界声明（Practicing What We Preach）
-
-Parrhesia 坚持“让结论与证据相称”，对当前 **`0.4.0` 版本（`v0.4.0`）**与已冻结 **`0.3.0` 版本**的成熟度均严格按 `engineering` 与 `computational` 证据等级分开披露：
-
-**历史最新公开 CI（`0.3.0` 基线，2026-11-14，`engineering × test_passed`）**：[提交 `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) 的 [GitHub Actions 运行](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809)在 Windows 和 Ubuntu（Python 3.11）均为 **117 项全部通过、0 失败、0 跳过**，规则生成一致性检查也通过。两个平台均安装 `jsonschema==4.26.0`，实际执行并通过 `test_actual_official_schemas`（schema 原始字节哈希、标识、Draft 2020-12 合法性及 `plugin.json` / `mcp.json` 校验）。此结果仅覆盖该历史提交的公开 CI 测试集，不替代工作树新增测试，也不扩大下述 `host_accepted` 范围或改变剩余限制；原有失败和跳过记录保留。
-
-| 评估维度 | 当前等级与判定 | 已核实的证据与明确边界 |
-| :--- | :--- | :--- |
-| **`0.4.0` 版本（`v0.4.0`）：28 个 MCP 工具、五核心错位修复、两阶段盲审与三层队列去重**<br>(`engineering × test_passed`，**支持**；限本地确定性与打包验收) | `0.4.0` 在 `0.3.0` 基础上扩展至 **28 个 MCP 工具**与 5 种工具配置档，纳入稿件/产物导入、`$defs`/`$ref` 与 `sha256` 压缩、**对称裁决强制门控**（`symmetry_mode="enforced"`）、**`L1-Explore` 持久假设树与 11 模式主动可计算方法学副驾驶**、`upsert_claim`、**两阶段 `estimate_first` 盲审（`stage="evidence_only"` / `--two-stage-blind`）**、**强化 OS 子进程并发双审与 `strict_os`/`--offline-env`/`.parrhesia` 快照校验 + HMAC `runner_seal`**、**三层语义队列去重跨案活体综合**、`pdf_backend="auto"`、12 项现实科研场景 `dry-run` 预演与离线 wheel/ZIP 打包验证（见 [硬化与边界核验](docs/verification/hardening-2026-11-21.md)、[导入核验](docs/verification/artifact-ingestion-2026-11-15.md)、[协议体积核验](docs/verification/protocol-load-2026-11-16.md) 与 [现实基准测试套件](docs/evaluation/realistic-science-pilot-v1.json)） | **仅限本地确定性单元测试、协议检查、机械套件、`dry-run` 与隔离 wheel 打包检查（`external_llm_status="not_run"`）**：**`0.4.0` 尚未完成任何桌面宿主 `host_accepted` 实机验收**，Linux `bwrap` / macOS `sandbox-exec` 实机内核执行待目标系统验证，也不代表真实大模型合规度或科研产出净收益已实测验证 |
-| **Windows Codex `0.3.0` 冻结包桌面集成与原生符号链接拒绝**<br>(`engineering × host_accepted`，**支持**；仅限 `0.3.0` 冻结基线) | 2026-11-14 于 Windows 11 + Python 3.13.9 + Codex 桌面端实际加载 `0.3.0` 冻结包（[验收摘要](docs/verification/release-0.3.0.md)）：完成伤害方向（`harm`）主张审查/裁定/导出、待裁定后继状态保持 `pending`、校准来源核验与失效剔除、CLI 超时/启动失败/非零退出收据→宿主读回，以及开启开发者模式后原生文件符号链接拒绝（原测试 1 通过、0 跳过；拒绝前后证据与事件零变动） | 证明在所测 Windows Codex 桌面会话与固定合成材料下，当时 `0.3.0` 的 22 工具 MCP 链路按契约运行。**边界**：角色内容为同上下文固定合成 fixture，不覆盖 `0.4.0` 新增工具、独立模型科学审查、其他宿主验收、全部 reparse point/竞态或 `user_impact` |
-| **本地状态机、机械门控、可计算效应、纵向校准与多宿主适配测试**<br>(`engineering × test_passed`，**支持**) | `0.3.0` 修复了命题支持与获益方向解耦、统计检查显式前提（`wald`/`log_wald` 与 `unweighted_binary`）、草稿后继 `pending` 状态、结局来源硬绑定、显式概率与启发式映射分栏、真值覆盖率与复现点包含率分栏及超时/启动失败收据保留（[0.3 升级说明](docs/migration-0.3.md)）。修复前历史快照包含 184 项单元测试与 Stage 0 五栏评估套件（[Stage 0 报告](docs/verification/archive/stage0-evaluation-before-2026-11-17.md) · [0.2.0 核验](docs/verification/release-0.2.0.md)） | 证明 SQLite ACID 事务、`events` SHA-256 哈希链、当时的 22 个 MCP 工具（含 `parrhesia_validate` 预检与 `repair_hint`）、反橡皮图章门控（[绕过硬化核验](docs/verification/gate-bypass-hardening-20261019.md)）及 Codex / Claude / Grok / Antigravity / ChatGPT 适配器结构与契约校验有效。历史快照数字不直接冒充每次修复后的重跑计数 |
-| **真实大模型行为净收益对照评估**<br>(`computational × unassessed`，**证据不足** / `not_run`) | 已冻结 [对照评价方案](docs/evaluation-plan.md) 并导出经零泄漏审计的四臂盲评提示词包（`A_baseline`、`B_compact`、`B_full`、`E_full_l2_workflow`，共 `279` 份），但外部付费 LLM 盲评调用状态为 `not_run` | **尚未在真实盲评保留集上测量**引入 Parrhesia 后模型夸大率、过度免责率与空泛中立率的统计学改善幅度（检出 15–20 个百分点绝对提升预计需 120–160 个独立案例） |
-| **确定性交叉门控 vs. 科学语义真理性**<br>*(系统固有架构边界)* | 引擎核验文件 SHA-256、唯一原文 `quote` 与主张词项/数值关联、设计包逐级必选检查、`pass` 证据绑定、显式研究设计冲突及 `input_manifest` | **确定性交叉核验不等于深层科学真理性证明**：门控能拦截敷衍填表、无证据 `pass`、相邻等级混用与未绑定结局，但不能脱离可复现执行链路独立识别精心伪造的原始文件，也不替代领域同行评审 |
-
----
-
-验收范围补充：失败执行项是**已安装 CLI 执行 → 原生宿主读回**，不是 MCP 执行任意命令。文件符号链接通过不覆盖目录 junction 或并发替换竞态；普通文件正对照登记成功。原始工具返回、测试、数据库及旧失败/跳过记录保留本地，公开验收摘要不是完整可复现证据包。
 
 ## 文档导航
 
 - **核心规范与契约**
-  - [唯一规则源 (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [产品设计说明 (`docs/product-design.md`)](docs/product-design.md) · [运行时接口契约 (`docs/contract.md`)](docs/contract.md) · [稿件与产物导入说明 (`docs/artifact-ingestion.md`)](docs/artifact-ingestion.md)
-  - [0.3.0 升级说明 (`docs/migration-0.3.md`)](docs/migration-0.3.md) · [0.2.0 升级说明 (`docs/migration-0.2.md`)](docs/migration-0.2.md) · [对照评价方案 (`docs/evaluation-plan.md`)](docs/evaluation-plan.md)
+  - [0.4.0 变更记录 (`CHANGELOG.md`)](CHANGELOG.md) · [唯一规则源 (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [产品设计说明 (`docs/product-design.md`)](docs/product-design.md) · [运行时接口契约 (`docs/contract.md`)](docs/contract.md) · [稿件与产物导入说明 (`docs/artifact-ingestion.md`)](docs/artifact-ingestion.md)
+  - [0.4.0 迁移与恢复 (`docs/migration-0.4.md`)](docs/migration-0.4.md) · [0.3.0 升级说明 (`docs/migration-0.3.md`)](docs/migration-0.3.md) · [0.2.0 升级说明 (`docs/migration-0.2.md`)](docs/migration-0.2.md) · [分发与隔离 Wheel 验收 (`docs/distribution.md`)](docs/distribution.md) · [对照评价方案 (`docs/evaluation-plan.md`)](docs/evaluation-plan.md)
 - **宿主集成与技能**
   - [L2 审查工作流 Skill (`skills/parrhesia-review/SKILL.md`)](skills/parrhesia-review/SKILL.md) · [L2 科学审查参考 Skill (`skills/parrhesia-l2-reference/SKILL.md`)](skills/parrhesia-l2-reference/SKILL.md)
   - [Antigravity 接入说明 (`docs/antigravity-integration.md`)](docs/antigravity-integration.md) · [Grok 接入说明 (`docs/grok-integration.md`)](docs/grok-integration.md) · [ChatGPT 接入说明 (`docs/chatgpt-integration.md`)](docs/chatgpt-integration.md)
@@ -362,4 +376,5 @@ Parrhesia 坚持“让结论与证据相称”，对当前 **`0.4.0` 版本（`v
 ## 许可证与代码仓库
 
 - **许可协议**：[Apache-2.0 License](LICENSE)
+- **发行版下载**：[v0.4.0 Releases](https://github.com/HERRY423/Parrhesia/releases/tag/v0.4.0)
 - **代码仓库**：[https://github.com/HERRY423/Parrhesia](https://github.com/HERRY423/Parrhesia)

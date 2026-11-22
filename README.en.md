@@ -4,7 +4,9 @@
 
 **Language / 语言**: **[简体中文](README.md)** · English
 
-**Parrhesia** is a local evidence-calibration and dual-review adjudication plugin conforming to the [Agent Plugins 1.0.0](https://agent-plugins.org/) specification, with a single-source cross-platform `AGENTS.md` policy system. Its design separates cognitive roles for independent review and uses a **deterministic local state machine with zero third-party dependencies (Python 3.11+ standard library only)** to address overclaiming, excessive disclaimers, and hollow neutrality in scientific analysis, engineering evaluation, and technical decisions. The measured scope and limits of this design are stated in the evidence-boundary section below.
+**Release**: [v0.4.0](https://github.com/HERRY423/Parrhesia/releases/tag/v0.4.0) ([Changelog](CHANGELOG.md)) · **Runtime**: Python 3.11+ stdlib only (zero third-party deps) · **Surface**: 28 MCP tools / 5 wire-budget profiles · **CI**: [Windows & Ubuntu (v0.4.0)](https://github.com/HERRY423/Parrhesia/actions/runs/44977579853) · **License**: [Apache-2.0](LICENSE)
+
+**Parrhesia** is a local evidence-calibration and dual-review adjudication plugin conforming to the [Agent Plugins 1.0.0](https://agent-plugins.org/) specification, with a single-source cross-platform `AGENTS.md` policy system. Its design separates cognitive roles for independent review and uses a **deterministic local state machine with zero third-party dependencies (Python 3.11+ standard library only)** to address overclaiming, excessive disclaimers, and hollow neutrality in scientific analysis, engineering evaluation, and technical decisions. Independent review requires host-isolated contexts or the built-in OS subprocess sandbox runner; deterministic gates verify traceability, statistical consistency, and dual-review closure rather than replacing domain peer review, and net behavioral gains on live LLMs remain to be measured under the [evaluation plan](docs/evaluation-plan.md).
 
 ---
 
@@ -35,6 +37,36 @@ The numbers below illustrate wording; they are not clinical results from this pr
 
 ---
 
+## What Makes Parrhesia v0.4.0 Different
+
+Prompt-only self-reflection still asks the same model inside the same context window to draft, praise, criticize, and conclude all at once. Generic linters and literature plugins cannot compute statistical self-consistency or catch recycled cohorts across papers. **Parrhesia `v0.4.0` turns blind review isolation, symmetric adjudication, computable methodology, and longitudinal synthesis into deterministic, zero-dependency engineering gates:**
+
+1. **True Two-Stage `estimate_first` Blind Review + OS Subprocess Sandbox**
+   - `review_packet(stage="evidence_only")` strips `question`, `draft`, `hypotheses`, author claim prose/classifications, and `claim_direction`, binding a stage-specific `packet_nonce` that cannot be replayed into `submit_review`.
+   - CLI `parrhesia run-isolated` / `run-dual-review --two-stage-blind` commits and verifies `stage1_locked_estimates` (`stage1_estimate_sha256`) inside an isolated sandbox before revealing full packets in a second sandbox. It scrubs sensitive env vars (`LD_PRELOAD`/`PYTHONPATH`/etc.), redirects `APPDATA`/`XDG_*`, supports `--offline-env` and `--sandbox-mode strict_os` (Linux `bwrap` / macOS `sandbox-exec`, failing explicitly with `sandbox_unavailable` rather than silently downgrading), checks `.parrhesia` snapshot integrity (`sandbox_boundary_violation`), seals HMAC `runner_seal`, and discloses `isolation_grade.boundaries`.
+2. **Bidirectional Symmetric Enforcement (`symmetry_mode="enforced"`)**
+   - One-sided anti-hype checks often push models into defensive boilerplate (“further studies are needed, for reference only”). Parrhesia v2 enforces bidirectional balance by default: blocking overclaiming, unsupported `pass` labels (`uncited_check_evidence`), and failing primary endpoints (`primary_effect_crosses_null` / `primary_effect_fails_multiplicity`), while also rejecting `unjustified_downgrade`/`abstention`, `unjustified_overhedging`, `false_balance_neutrality`, and vacuous bare-term reversals—requiring `abstention_justification`, `actionable_stance`, and observable reversal conditions.
+3. **11-Mode Proactive Computable Methodology Co-Pilot (Pure Stdlib)**
+   - Built-in deterministic diagnostics in pure Python standard library covering **power / MDE (`power`)**, **TOST equivalence**, **E-value confounding sensitivity**, **cluster design effect (`design_effect`)**, **multiplicity with exploratory-fork inflation (`multiplicity_audit`)**, **Gelman-Stern interaction contrast & DerSimonian-Laird random-effects pooling (`interaction_heterogeneity`)**, **EPV shrinkage & Vickers Decision-Curve Net Benefit (`prediction_utility_audit`)**, **Manski worst/best-case & tipping-point attrition bounds (`attrition_bounds`)**, **evidence dominance**, **full-case audit (`case_audit`)**, and **cross-case synthesis (`lineage_synthesis`)**—proactively surfaced in `explore`, `upsert_claim`, and blind packets.
+4. **Longitudinal Claim Graph & 3-Layer Semantic Cohort Deduplication (`parrhesia synthesize`)**
+   - Connects follow-up studies via an append-only DAG (`claim_graph`), **5 executable `reversal_triggers`**, and source-bound **post-hoc probability calibration** (`Brier` / `Log` / `ECE` / `MCE`).
+   - Cross-case synthesis runs **3-layer semantic cohort deduplication**: Layer 1 tracks `derived_from_evidence_ids` ancestor snapshot SHA-256s, canonical `cohort_id`s, and standardized `NCT`/`GSE`/`phs`/DOI IDs (while legitimately allowing multi-cohort papers with distinct explicit `cohort_id`s); Layer 2 screens identical `n ≥ 20` effect clones and high text 3-gram Jaccard (`≥ 0.65`) overlap as `suspected_cohort_overlaps`, preventing recycled cohorts from passing as `replicated_consistent` and exporting offline HTML reports with static SVG forest plots.
+5. **Zero Dependencies, Budgeted Wire Schemas & Multi-Host Parity**
+   - Requires only **Python 3.11+ stdlib** for the full MCP server, SQLite event SHA-256 hash chain, read-only multi-format manuscript/artifact ingestion (Markdown / LaTeX / DOCX / Quarto / HTML / JATS XML / PDF / `.ipynb` / `.xlsx` / `.parquet`), and offline HTML reports. **28 typed MCP tools** use `$defs`/`$ref` + `sha256` compaction across **5 wire-budget profiles** (`full` 81,519 B down to `review` 10,892 B), generated from a single policy source for Codex, Claude Code, Grok Build CLI, Antigravity, and ChatGPT Web.
+
+### At a Glance: Why Not Just Another Prompt or Linter?
+
+| Dimension | Generic Prompts / Single-Chat Review | Ordinary Linters / Literature Helpers | Parrhesia `v0.4.0` |
+| :--- | :--- | :--- | :--- |
+| **Review isolation** | Single shared context; anchored by framing | No cognitive role split | Role decoupling + `evidence_only` 2-stage `estimate_first` + OS subprocess sandbox & HMAC `runner_seal` |
+| **Anti-hype vs. anti-hedge** | Fighting hype spawns boilerplate hedging | Shallow keyword warnings only | `symmetry_mode="enforced"` blocks both overclaiming and unjustified downgrades / false balance |
+| **Methodology & statistics** | Mental math or ad-hoc brittle scripts | No study-design or effect checks | 11 stdlib diagnostic modes + `wald`/`student_t`/2×2 Fisher/GRIM/Holm-BH/primary endpoint gates |
+| **Anchoring & anti-stall** | Vague citations and nominal edits | Regex format checks only | File SHA-256 + unique claim-linked `quote` + `revised_text_quote` substitution check + 4-role windowing |
+| **Cross-study lineage & dedup** | Starts over each chat; recycled cohorts double-counted | Abstract lookup only | `claim_graph` + 3-layer cohort deduplication + executable `reversal_triggers` + outcome calibration |
+| **Deployment & hosts** | Copy-pasted prose; non-reproducible | Platform-locked or heavy deps | Zero third-party deps (Python 3.11+ stdlib) · SQLite hash chain · 5 host integrations · works offline |
+
+---
+
 ## Four progressive workflows with minimal overhead (`L0` / `L1` / `L1-Explore` / `L2`)
 
 Parrhesia keeps routine tasks lightweight while applying checks to consequential conclusions. Agents select a tier by task and identify it on the first line; users need not memorize tool payloads.
@@ -56,7 +88,7 @@ Rules load on demand: the main [skill](skills/parrhesia-review/SKILL.md) routes 
 
 The contract supports the same approach: call `parrhesia_contract(section="index")`, then request relevant section IDs. Excerpts include original line ranges and a document digest; `expected_sha256` prevents mixing revisions. Calls without arguments retain the full-document response.
 
-The local MCP server and CLI require only **Python 3.11+**, with **zero third-party dependencies** and no external packages to install with `pip`.
+The local MCP server and CLI require only **Python 3.11+**, with **zero third-party dependencies** and no external packages to install with `pip`. For offline installation, prebuilt packages (`parrhesia_review-0.4.0-py3-none-any.whl`, `parrhesia-0.4.0.zip`, and `SHA256SUMS.txt`) are attached to [GitHub Releases (`v0.4.0`)](https://github.com/HERRY423/Parrhesia/releases/tag/v0.4.0).
 
 ### Option 1: Codex plugin marketplace (GUI / CLI)
 
@@ -67,7 +99,7 @@ In the Codex desktop plugin management page, choose **Add plugin marketplace** (
 | Field | Value | Notes |
 | :--- | :--- | :--- |
 | **Source** | `HERRY423/Parrhesia`<br>*(or `https://github.com/HERRY423/Parrhesia.git`)* | For an offline package or local clone, select the repository root containing `.agents/plugins/marketplace.json`, such as `C:\Parrhesia` |
-| **Git ref** | `main` | Tracks latest `0.4.0` development updates; use a commit or `0.3.0` tag to pin a release |
+| **Git ref** | `v0.4.0` *(or `main`)* | Pin `v0.4.0` for the current release, or use `main` for latest updates |
 | **Sparse path** | **Leave blank** | The plugin manifest is at the root; do **not** copy the placeholder `plugins/codex` |
 
 Click **Add marketplace**, then select **Parrhesia Marketplace** and install **Parrhesia**.
@@ -75,8 +107,8 @@ Click **Add marketplace**, then select **Parrhesia Marketplace** and install **P
 #### 2. Codex CLI installation
 
 ```powershell
-# Add the GitHub marketplace and install the plugin
-codex plugin marketplace add HERRY423/Parrhesia --ref main
+# Add the GitHub marketplace and install the plugin (or use --ref main for latest commits)
+codex plugin marketplace add HERRY423/Parrhesia --ref v0.4.0
 codex plugin add parrhesia@parrhesia-marketplace
 
 # Optional: add a local clone
@@ -112,7 +144,7 @@ claude plugin install parrhesia@parrhesia-marketplace
 
 The Claude-specific `.claude-plugin/plugin.json` now declares the MCP server inline, using `${CLAUDE_PLUGIN_ROOT}` for the launcher and `${CLAUDE_PLUGIN_DATA}/workspace` for the default persistent ledger, independently of the generic `mcp.json` variables. Use a recent Claude Code version supporting `userConfig` and these variables. Set the plugin's `python` option in `/config` to a working Python **3.11+** interpreter (default: `python`; use `python3` on Linux/macOS when needed, or an absolute executable path). If set, `PARRHESIA_WORKSPACE` must be an existing absolute directory and overrides the default. Back up ledgers before uninstalling: Claude may delete plugin data on uninstall.
 
-Users with the old manifest must update the plugin and restart the session, verify that the cached manifest contains `mcpServers`, and confirm Parrhesia is connected in `/mcp`; installation alone does not establish server availability. This repair passed Claude Code 2.1.325 strict manifest validation and independent MCP subprocess checks; **real Claude Code session workflow acceptance is still pending**, and the `host_accepted` scope below is unchanged. [Official Claude manifest and variable reference](https://code.claude.com/docs/en/plugins-reference)
+Users with the old manifest must update the plugin and restart the session, verify that the cached manifest contains `mcpServers`, and confirm Parrhesia is connected in `/mcp`; installation alone does not establish server availability. This repair passed Claude Code 2.1.325 strict manifest validation and independent MCP subprocess checks; **real Claude Code session workflow acceptance is still pending**. [Official Claude manifest and variable reference](https://code.claude.com/docs/en/plugins-reference)
 
 #### 2. Standard Agent Plugins 1.0.0 clients
 
@@ -328,33 +360,15 @@ python scripts/build-release.py --output dist/parrhesia-0.4.0.zip
 ```
 </details>
 
-This release also provides targeted counterfactual, held-out, metamorphic and P1/P2 modes; see `--help`. See [evaluation refresh](docs/verification/evaluation-modernization-2026-11-17.md) for measured inputs, ten ingestion regressions and retained gaps. The [author-burden pilot](docs/evaluation/author-impact-pilot.md) provides four-arm preparation and observation tools; live model and author-benefit evaluation remain unrun. These `0.4.0` test results do not update previously installed versions.
+This release also provides targeted counterfactual, held-out, metamorphic and P1/P2 modes; see `--help`. See [evaluation refresh](docs/verification/evaluation-modernization-2026-11-17.md) for measured inputs, ten ingestion regressions and retained gaps. The [author-burden pilot](docs/evaluation/author-impact-pilot.md) provides four-arm preparation and observation tools; live model and author-benefit evaluation remain unrun.
 
 ---
-
-## Our own evidence boundaries (practicing what we preach)
-
-Parrhesia reports maturity separately for the **`0.4.0` release (`v0.4.0`)** and the **frozen `0.3.0` release** using the same `engineering` and `computational` evidence levels:
-
-**Historical public CI baseline (`0.3.0`, 2026-11-14, `engineering × test_passed`)**: the [GitHub Actions run](https://github.com/HERRY423/Parrhesia/actions/runs/43608255809) for [commit `9581eae`](https://github.com/HERRY423/Parrhesia/commit/9581eae170525e5d9d61586c78774085b2edaead) completed on both Windows and Ubuntu (Python 3.11) with **117 tests passed, 0 failures, and 0 skips**; policy generation consistency checks also passed. Both platforms installed `jsonschema==4.26.0` and actually ran and passed `test_actual_official_schemas` (original schema byte hashes, identifiers, Draft 2020-12 validity, and `plugin.json` / `mcp.json` validation). This historical baseline covers only that commit's public CI test suite and does not replace `0.4.0` tests, extend the `host_accepted` scope below, or erase earlier failure/skip records.
-
-| Evaluation area | Current evidence and judgment | Supported scope and limits |
-| :--- | :--- | :--- |
-| **`0.4.0` release (`v0.4.0`): 28 MCP tools, two-stage blind review, sandbox hardening, and 3-layer cohort dedup**<br>(`engineering × test_passed`, **supported** via local deterministic & packaging checks) | Extends `0.3.0` to **28 MCP tools** and 5 tool profiles, adding ingestion/compaction (`$defs`/`$ref` + `sha256` sharing), **symmetric pre-adjudication gating** (`symmetry_mode="enforced"`), **`L1-Explore` hypothesis tree & 11-mode computable methodology co-pilot**, `upsert_claim`, **two-stage `estimate_first` commit-then-reveal (`stage="evidence_only"` / `--two-stage-blind`)**, **hardened OS-isolated `run-dual-review` (`strict_os` / `--offline-env` / `.parrhesia` snapshot check + `boundaries` + HMAC `runner_seal`)**, **3-layer semantic cohort deduplication in `lineage_synthesis` & offline SVG forest reports**, opt-in `pdf_backend="auto"`, a 12-case realistic scientific `dry-run` suite, and offline wheel/ZIP packaging verification (see [hardening verification](docs/verification/hardening-2026-11-21.md), [ingestion verification](docs/verification/artifact-ingestion-2026-11-15.md), [protocol load verification](docs/verification/protocol-load-2026-11-16.md), and [realistic pilot benchmark](docs/evaluation/realistic-science-pilot-v1.json)) | **Local deterministic tests, protocol checks, mechanical suite, zero-LLM `dry-run`, and isolated wheel packaging only (`external_llm_status="not_run"`)**: **no desktop `host_accepted` verification has been run on `0.4.0`**, native Linux `bwrap` / macOS `sandbox-exec` kernel execution awaits target-OS testing, and live LLM compliance or researcher time savings remain unmeasured |
-| **Windows Codex `0.3.0` frozen package integration and native file-symlink rejection**<br>(`engineering × host_accepted`, **supported** for frozen `0.3.0` only) | On 2026-11-14, Windows 11 + Python 3.13.9 + Codex desktop loaded the frozen `0.3.0` package ([acceptance summary](docs/verification/release-0.3.0.md)). Harm-proposition review/adjudication/export, pending successor relations, calibration source verification/invalidation, CLI timeout/start-failure/nonzero-exit receipts read back by the host, and native file-symlink rejection after enabling Developer Mode were exercised. Original symlink test: 1 passed, 0 skipped; rejected registration changed neither evidence nor events | The then-current 22-tool MCP workflow, state machine, event chain, and tested path boundary operated according to contract in this Windows Codex session with fixed synthetic material. **Limits**: reviewer content was a same-context fixed fixture, not independent scientific model review; does not cover `0.4.0` new tools, other hosts, all reparse point types or concurrency races, or `user_impact` |
-| **Local state machine, gates, computable effects, longitudinal calibration, and host adapters**<br>(`engineering × test_passed`, **supported**) | `0.3.0` separates proposition support from benefit direction, requires explicit `wald`/`log_wald` and `unweighted_binary` applicability, preserves pending draft successors, binds outcome sources, separates explicit forecasts from heuristics and truth coverage from replication containment, and retains failure receipts ([migration guide](docs/migration-0.3.md)). The pre-repair historical snapshot contains 184 unit tests and five Stage 0 evaluation columns ([Stage 0](docs/verification/archive/stage0-evaluation-before-2026-11-17.md), [0.2.0 verification](docs/verification/release-0.2.0.md)) | Supports the tested SQLite ACID transactions, `events` SHA-256 chain, the then-current 22 MCP tools including `parrhesia_validate` and `repair_hint`, anti-rubber-stamping gates ([hardening verification](docs/verification/gate-bypass-hardening-20261019.md)), and adapter structure/contracts for Codex, Claude, Grok, Antigravity, and ChatGPT. Historical totals are not post-repair rerun counts |
-| **Net behavioral improvement on live LLMs**<br>(`computational × unassessed`, **insufficient_evidence** / `not_run`) | The [evaluation plan](docs/evaluation-plan.md) is frozen and leakage-audited four-arm blind prompt packets were exported (`A_baseline`, `B_compact`, `B_full`, `E_full_l2_workflow`; `279` packets). External paid LLM blind evaluation remains `not_run` | Reductions in overclaim, excessive disclaimers, and hollow neutrality have **not been measured on a real blinded held-out evaluation**. The plan estimates 120–160 independent cases to detect an absolute improvement of 15–20 percentage points |
-| **Deterministic cross-checks versus scientific truth**<br>*(architectural boundary)* | The engine checks source SHA-256, unique claim-linked quotes, progressively required design checks, evidence-bound `pass`, explicit design contradictions, and `input_manifest` | Deterministic checks are **not proof of scientific truth**. They can block empty form-filling, unsupported `pass`, adjacent-level misuse, and unbound outcomes, but cannot independently identify carefully fabricated source files without a reproducible execution chain or replace domain peer review |
-
----
-
-Additional acceptance scope: failure receipts cover **installed CLI execution → native host readback**, not arbitrary command execution through MCP. File-symlink acceptance does not cover directory junctions or concurrent replacement races; ordinary-file registration passed as a positive control. Raw tool responses, tests, databases, and earlier failure/skip records remain local. The public acceptance summary is not a complete reproducibility bundle.
 
 ## Documentation
 
 - **Core policy and contracts**
-  - [Single policy source (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [Product design (`docs/product-design.md`)](docs/product-design.md) · [Runtime contract (`docs/contract.md`)](docs/contract.md) · [Manuscript and artifact ingestion (`docs/artifact-ingestion.md`)](docs/artifact-ingestion.md)
-  - [0.3.0 migration (`docs/migration-0.3.md`)](docs/migration-0.3.md) · [0.2.0 migration (`docs/migration-0.2.md`)](docs/migration-0.2.md) · [Evaluation plan (`docs/evaluation-plan.md`)](docs/evaluation-plan.md)
+  - [0.4.0 Changelog (`CHANGELOG.md`)](CHANGELOG.md) · [Single policy source (`policy/parrhesia-policy.md`)](policy/parrhesia-policy.md) · [Product design (`docs/product-design.md`)](docs/product-design.md) · [Runtime contract (`docs/contract.md`)](docs/contract.md) · [Manuscript and artifact ingestion (`docs/artifact-ingestion.md`)](docs/artifact-ingestion.md)
+  - [0.4.0 migration and recovery (`docs/migration-0.4.md`)](docs/migration-0.4.md) · [0.3.0 migration (`docs/migration-0.3.md`)](docs/migration-0.3.md) · [0.2.0 migration (`docs/migration-0.2.md`)](docs/migration-0.2.md) · [Distribution and isolated wheel checks (`docs/distribution.md`)](docs/distribution.md) · [Evaluation plan (`docs/evaluation-plan.md`)](docs/evaluation-plan.md)
 - **Host integrations and skills**
   - [L2 review workflow (`skills/parrhesia-review/SKILL.md`)](skills/parrhesia-review/SKILL.md) · [L2 scientific reference (`skills/parrhesia-l2-reference/SKILL.md`)](skills/parrhesia-l2-reference/SKILL.md)
   - [Antigravity](docs/antigravity-integration.md) · [Grok](docs/grok-integration.md) · [ChatGPT](docs/chatgpt-integration.md)
@@ -369,4 +383,5 @@ Additional acceptance scope: failure receipts cover **installed CLI execution �
 ## License and repository
 
 - **License**: [Apache-2.0 License](LICENSE)
+- **Releases**: [v0.4.0 Releases](https://github.com/HERRY423/Parrhesia/releases/tag/v0.4.0)
 - **Repository**: [https://github.com/HERRY423/Parrhesia](https://github.com/HERRY423/Parrhesia)
